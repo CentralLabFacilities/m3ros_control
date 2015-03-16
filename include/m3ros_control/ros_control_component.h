@@ -103,10 +103,14 @@ public:
         ndof_right_arm_ = bot_shr_ptr_->GetNdof(RIGHT_ARM);
         ndof_left_arm_ = bot_shr_ptr_->GetNdof(LEFT_ARM);
         ndof_head_ = bot_shr_ptr_->GetNdof(HEAD);
+	ndof_torso_ = bot_shr_ptr_->GetNdof(TORSO);
         ndof_right_hand_ = bot_shr_ptr_->GetNdof(RIGHT_HAND);
         ndof_left_hand_ = bot_shr_ptr_->GetNdof(LEFT_HAND);
+	std::cout << "#####################################" << std::endl;
+	std::cout<<"ndof ra "<<ndof_right_arm_<<" la "<<ndof_left_arm_<<" lh "
+        <<ndof_left_hand_<<" rh "<<ndof_right_hand_<<" h "<<ndof_head_<<" torso "<<ndof_torso_<<std::endl;
 
-        ndof_ = ndof_right_arm_ + ndof_left_arm_ + ndof_head_ + ndof_right_hand_ + ndof_left_hand_;
+        ndof_ = ndof_right_arm_ + ndof_left_arm_ + ndof_head_ + ndof_right_hand_ + ndof_left_hand_ + ndof_torso_;
 
         joint_name_.resize(ndof_);
         joint_position_.resize(ndof_);
@@ -155,9 +159,23 @@ public:
             //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
         }
+        // TORSO
+        istart_+=ndof_left_arm_;
+        iend_+=ndof_torso_;
+        for(int i=istart_; i<iend_; i++)
+        {
+            joint_name_[i] = "torso_j"+std::to_string(i-istart_);
+            js_interface_.registerHandle(JointStateHandle(joint_name_[i], &joint_position_[i], &joint_velocity_[i], &joint_effort_[i]));
+            pj_interface_.registerHandle(JointHandle(js_interface_.getHandle(joint_name_[i]), &joint_position_command_[i]));
+            ej_interface_.registerHandle(JointHandle(js_interface_.getHandle(joint_name_[i]), &joint_effort_command_[i]));
+            vj_interface_.registerHandle(JointHandle(js_interface_.getHandle(joint_name_[i]), &joint_velocity_command_[i]));
+
+            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
+
+        }
 
         // HEAD
-        istart_+=ndof_left_arm_;
+        istart_+=ndof_torso_;
         iend_+=ndof_head_;
         for(int i=istart_; i<iend_; i++)
         {
@@ -224,8 +242,28 @@ public:
             joint_velocity_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(LEFT_ARM,i-istart_));
             joint_effort_[i] = mm2m(bot_shr_ptr_->GetTorque_mNm(LEFT_ARM,i-istart_));// mNm -> Nm
         }
-        // HEAD
+        // TORSO
         istart_+=ndof_left_arm_;
+        iend_+=ndof_torso_;
+        for(int i=istart_; i<iend_; i++)
+        {
+            //j1 slave is a copy of j1
+            if(i-istart_==2)
+            {
+                joint_position_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDeg(TORSO,i-istart_-1));
+                joint_velocity_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(TORSO,i-istart_-1));
+                joint_effort_[i] = mm2m(bot_shr_ptr_->GetTorque_mNm(TORSO,i-istart_-1));// mNm -> Nm
+            }
+            else
+            {
+                joint_position_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDeg(TORSO,i-istart_));
+                joint_velocity_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(TORSO,i-istart_));
+                joint_effort_[i] = mm2m(bot_shr_ptr_->GetTorque_mNm(TORSO,i-istart_));// mNm -> Nm
+            }
+        }
+
+        // HEAD
+        istart_+=ndof_torso_;
         iend_+=ndof_head_;
         for(int i=istart_; i<iend_; i++)
         {
@@ -379,7 +417,7 @@ public:
 
 private:
 
-    int istart_,iend_,ndof_right_arm_, ndof_left_arm_,ndof_head_,ndof_right_hand_,ndof_left_hand_, ndof_;
+    int istart_,iend_,ndof_right_arm_, ndof_left_arm_,ndof_head_,ndof_right_hand_,ndof_left_hand_, ndof_torso_ ,ndof_;
 
     m3::M3Humanoid* bot_shr_ptr_;
 
