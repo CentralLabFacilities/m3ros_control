@@ -345,8 +345,30 @@ public:
                 break;
             }
         }
-        // HEAD
+	// TORSO
         istart_+=ndof_left_arm_;
+        iend_+=ndof_torso_;
+        for(int i=istart_; i<iend_; i++)
+        {
+	    //j1 slave is a copy of j1, do not write j1 slave value to the actuator
+            if(i-istart_<2)
+	    {
+                bot_shr_ptr_->SetStiffness(TORSO,i-istart_,1.0);
+                bot_shr_ptr_->SetSlewRateProportional(TORSO,i-istart_,1.0);
+                switch (joint_mode_)
+                {
+                case POSITION:
+                    bot_shr_ptr_->SetModeTheta(TORSO,i-istart_);
+                    bot_shr_ptr_->SetThetaDeg(TORSO,i-istart_,RAD2DEG(joint_position_command_[i]));
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+
+        // HEAD
+        istart_+=ndof_torso_;
         iend_+=ndof_head_;
         for(int i=istart_; i<iend_; i++)
         {
