@@ -14,9 +14,9 @@ bool RosControlComponent::LinkDependentComponents()
         m3rt::M3_INFO("M3Humanoid component %s not found for component %s\n",bot_name_.c_str(),GetName().c_str());
     	return false;
     zlift_shr_ptr_ = (m3::M3JointZLift*) factory->GetComponent(zlift_name_)
-	if (zlift_shr_ptr_==NULL)
-		m3rt::M3_INFO("M3JointZLift component %s not found for component %s\n",zlift_name_.c_str(),GetName().c_str());
-		return false;
+    if (zlift_shr_ptr_==NULL)
+	m3rt::M3_INFO("M3JointZLift component %s not found for component %s\n",zlift_name_.c_str(),GetName().c_str());
+	return false;
     return true;
 }
 

@@ -13,6 +13,7 @@ extern "C" {
 ////////// M3
 #include <m3/chains/arm.h>
 #include <m3/robots/humanoid.h>
+#include <m3/hardware/joint_zlift.h>
 
 ////////// M3RT
 #include <m3rt/base/component.h>
@@ -75,12 +76,14 @@ public:
 	typedef std::map<std::string, std::pair<M3Chain, int> > map_t;
 	typedef map_t::iterator map_it_t;
 
-	MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, std::string hw_interface_mode) :
+	MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr, std::string hw_interface_mode) :
 			bot_shr_ptr_(NULL) {
 		using namespace hardware_interface;
 
 		assert(bot_shr_ptr != NULL);
+		assert(zlift_shr_ptr != NULL);
 		bot_shr_ptr_ = bot_shr_ptr;
+		zlift_shr_ptr_ = zlift_shr_ptr;
 
 		if (hw_interface_mode == "position")
 			joint_mode_ = POSITION;
@@ -510,15 +513,15 @@ public:
 		istart_ += ndof_left_hand_;
 		iend_ += ndof_zlift_;
 		for (int i = istart_; i < iend_; i++) {
-			zlift_shr_ptr_->SetStiffness(1.0);
-			zlift_shr_ptr_->SetSlewRateProportional(1.0);
+			zlift_shr_ptr_->SetDesiredStiffness(1.0);
+			zlift_shr_ptr_->SetSlewRate(1.0);
 			switch (joint_mode_) {
 			case VELOCITY:
-				zlift_shr_ptr_->SetModeThetaDotGc();
+				zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
 				zlift_shr_ptr_->SetDesiredPosDot(RAD2DEG(joint_vel_command_[i]));
 				break;
 			case POSITION:
-				zlift_shr_ptr_->SetModeThetaGc();
+				zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
 				zlift_shr_ptr_->SetDesiredPos(RAD2DEG(joint_pos_command_[i]));
 				break;
 			case EFFORT:
@@ -605,7 +608,7 @@ protected:
 		return status_.mutable_base();
 	} //NOTE make abstract M3Component happy
 
-	bool RosInit(m3::M3Humanoid* bot) {
+	bool RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift) {
 		//std::string ros_node_name = GetName();
 		std::string ros_node_name = "";
 		int argc = 1;
@@ -623,7 +626,7 @@ protected:
 			spinner_ptr_ = new ros::AsyncSpinner(1); // Use one thread for the external communications
 			spinner_ptr_->start();
 			// Create the Meka Hardware interface
-			hw_ptr_ = new MekaRobotHW(bot, hw_interface_mode_);
+			hw_ptr_ = new MekaRobotHW(bot, lift, hw_interface_mode_);
 			// Create the controller manager
 			cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
 					*ros_nh_ptr_);
