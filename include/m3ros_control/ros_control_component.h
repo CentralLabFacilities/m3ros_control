@@ -488,7 +488,7 @@ protected:
     bool RosInit(m3::M3Humanoid* bot)
     {
         //std::string ros_node_name = GetName();
-        std::string ros_node_name = "";
+        std::string ros_node_name = "meka_roscontrol";
         int argc = 1;
         char* arg0 = strdup(ros_node_name.c_str());
         char* argv[] = {arg0, 0};
