@@ -553,8 +553,8 @@ private:
 	};
 	joint_mode_t joint_mode_;
 
+	std::vector<double> joint_effort_command_;
 	std::vector<double> joint_effort_;
-
 	std::vector<double> joint_pos_;
 	std::vector<double> joint_pos_command_;
 	std::vector<double> joint_vel_;
@@ -648,7 +648,7 @@ protected:
 	}
 
 private:
-	std::string bot_name_, hw_interface_mode_;
+	std::string bot_name_, zlift_name_, hw_interface_mode_;
 	m3::M3Humanoid* bot_shr_ptr_;
 	m3::M3JointZLift* zlift_shr_ptr_;
 	ros::Duration period_;

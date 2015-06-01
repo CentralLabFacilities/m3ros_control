@@ -10,20 +10,22 @@ using namespace m3;
 bool RosControlComponent::LinkDependentComponents()
 {
     bot_shr_ptr_=(m3::M3Humanoid*) factory->GetComponent(bot_name_);
-    if (bot_shr_ptr_==NULL)
+    if (bot_shr_ptr_==NULL) {
         m3rt::M3_INFO("M3Humanoid component %s not found for component %s\n",bot_name_.c_str(),GetName().c_str());
     	return false;
-    zlift_shr_ptr_ = (m3::M3JointZLift*) factory->GetComponent(zlift_name_)
-    if (zlift_shr_ptr_==NULL)
+	}
+    zlift_shr_ptr_ = (m3::M3JointZLift*) factory->GetComponent(zlift_name_);
+    if (zlift_shr_ptr_==NULL) {
 	m3rt::M3_INFO("M3JointZLift component %s not found for component %s\n",zlift_name_.c_str(),GetName().c_str());
 	return false;
+	}
     return true;
 }
 
 void RosControlComponent::Startup()
 {
     period_.fromSec(1.0/static_cast<double>(RT_TASK_FREQUENCY));
-    if(!RosInit(bot_shr_ptr_) || !RosInit(zlift_shr_ptr_)) //NOTE here the bot_shr_ptr_ is correctly loaded
+    if(!RosInit(bot_shr_ptr_, zlift_shr_ptr_)) //NOTE here the bot_shr_ptr_ is correctly loaded
         skip_loop_ = true;
     INIT_CNT(tmp_dt_status_);
     INIT_CNT(tmp_dt_cmd_);
