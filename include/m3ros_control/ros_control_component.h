@@ -85,6 +85,8 @@ public:
 		bot_shr_ptr_ = bot_shr_ptr;
 		zlift_shr_ptr_ = zlift_shr_ptr;
 
+		printed=false;
+	
 		if (hw_interface_mode == "position")
 			joint_mode_ = POSITION;
 		else if (hw_interface_mode == "effort")
@@ -110,6 +112,8 @@ public:
 		std::cout << "ndof ra " << ndof_right_arm_ << " la " << ndof_left_arm_
 				<< " lh " << ndof_left_hand_ << " rh " << ndof_right_hand_
 				<< " h " << ndof_head_ << " torso " << ndof_torso_ << std::endl;
+		std::cout << "zLift power on " << zlift_shr_ptr_->IsMotorPowerOn() << std::endl;
+		std::cout << "zLift mm per deg " << zlift_shr_ptr_->Getcb_mm_per_deg() << std::endl;
 
 		ndof_ = ndof_right_arm_ + ndof_left_arm_ + ndof_head_ + ndof_right_hand_
 				+ ndof_left_hand_ + ndof_torso_ + ndof_zlift_;
@@ -361,8 +365,8 @@ public:
 		istart_ += ndof_left_hand_;
 		iend_ += ndof_zlift_;
 		for (int i = istart_; i < iend_; i++) {
-			joint_pos_[i] = DEG2RAD(zlift_shr_ptr_->GetPos());
-			joint_vel_[i] = DEG2RAD(zlift_shr_ptr_->GetPosDot());
+			joint_pos_[i] = zlift_shr_ptr_->GetPos();
+			joint_vel_[i] = zlift_shr_ptr_->GetPosDot();
 			joint_effort_[i] = mm2m(zlift_shr_ptr_->GetForce());	// mNm -> Nm
 		}
 	}
@@ -370,6 +374,12 @@ public:
 	void write() {
 		//if (safety_check())
 		bot_shr_ptr_->SetMotorPowerOn();
+		if(!printed)
+		{
+			std::cout << "zLift power on " << zlift_shr_ptr_->IsMotorPowerOn() << std::endl;
+			printed =true;
+		}
+		//zlift_shr_ptr_->SetMotorPowerOn();
 		// RIGHT_ARM
 		istart_ = 0;
 		iend_ = ndof_right_arm_;
@@ -432,7 +442,7 @@ public:
 				bot_shr_ptr_->SetSlewRateProportional(TORSO, i - istart_, 1.0);
 				switch (joint_mode_) {
 				case POSITION:
-					bot_shr_ptr_->SetModeTheta(TORSO, i - istart_);
+					bot_shr_ptr_->SetModeThetaGc(TORSO, i - istart_);
 					bot_shr_ptr_->SetThetaDeg(TORSO, i - istart_,
 							RAD2DEG(joint_pos_command_[i]));
 					break;
@@ -514,15 +524,16 @@ public:
 		iend_ += ndof_zlift_;
 		for (int i = istart_; i < iend_; i++) {
 			zlift_shr_ptr_->SetDesiredStiffness(1.0);
-			zlift_shr_ptr_->SetSlewRate(1.0);
+			zlift_shr_ptr_->SetSlewRate(1.0*2000.0); //TODO READ CONFIG FOR MAX_Q_SLEWRATE
 			switch (joint_mode_) {
 			case VELOCITY:
 				zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
-				zlift_shr_ptr_->SetDesiredPosDot(RAD2DEG(joint_vel_command_[i]));
+				zlift_shr_ptr_->SetDesiredPosDot(joint_vel_command_[i]);
 				break;
 			case POSITION:
 				zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-				zlift_shr_ptr_->SetDesiredPos(RAD2DEG(joint_pos_command_[i]));
+				
+				zlift_shr_ptr_->SetDesiredPos(joint_pos_command_[i]);
 				break;
 			case EFFORT:
 				// P.L. do nothin
@@ -542,6 +553,8 @@ private:
 
 	m3::M3Humanoid* bot_shr_ptr_;
 	m3::M3JointZLift* zlift_shr_ptr_;
+
+	bool printed;
 
 	hardware_interface::JointStateInterface js_interface_;
 	hardware_interface::PositionJointInterface pj_interface_;

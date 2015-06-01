@@ -1,0 +1,9 @@
+<launch>
+<!-- Robot parameter server -->
+<rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+<!-- Spawn the controllers -->
+<node pkg="controller_manager" type="spawner" output="screen" name="meka_js" args="joint_state_controller zlift_j0_controller"/>
+
+
+</launch>
+

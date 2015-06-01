@@ -17,6 +17,25 @@
     joint: left_arm_j4
 
   # Position only controllers ----------------------------------------------
+
+  zlift_j0_controller:
+    type: "position_controllers/JointPositionController"
+    joint: zlift_j0
+
+  torso_j1_controller:
+    type: "position_controllers/JointPositionController"
+    joint: torso_j1
+
+  torso_j0_controller:
+    type: "position_controllers/JointPositionController"
+    joint: torso_j0
+
+  torso_position_controller:
+    type: "position_controllers/JointPositionController"
+    joints:
+      - torso_j0
+      - torso_j1
+
   right_position_controller:
     type: "position_controllers/JointPositionController"
     joints:
