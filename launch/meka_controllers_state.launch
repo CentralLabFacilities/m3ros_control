@@ -15,6 +15,11 @@
    <rosparam param="rate">50</rosparam>
  </node>
 
+<!-- Robot state publisher -->
+  <node pkg="robot_state_publisher" type="state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="50.0" />
+    <param name="tf_prefix" type="string" value="" />
+  </node>
 
 </launch>
 
