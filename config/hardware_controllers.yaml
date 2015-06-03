@@ -20,13 +20,13 @@ meka_roscontrol:
     joint: zlift_j0
 
   torso_position_controller:
-    type: "position_controllers/JointPositionController"
+    type: "position_controllers/JointGroupPositionController"
     joints:
       - torso_j0
       - torso_j1
 
   right_position_controller:
-    type: "position_controllers/JointPositionController"
+    type: "position_controllers/JointGroupPositionController"
     joints:
       - right_arm_j0
       - right_arm_j1
@@ -37,7 +37,7 @@ meka_roscontrol:
       - right_arm_j6
 
   left_position_controller:
-    type: "position_controllers/JointPositionController"
+    type: "position_controllers/JointGroupPositionController"
     joints:
       - left_arm_j0
       - left_arm_j1
@@ -48,7 +48,7 @@ meka_roscontrol:
       - left_arm_j6
 
   right_hand_position_controller:
-    type: "position_controllers/JointPositionController"
+    type: "position_controllers/JointGroupPositionController"
     joints:
       - right_hand_j0
       - right_hand_j1
@@ -57,7 +57,7 @@ meka_roscontrol:
       - right_hand_j4
 
   left_hand_position_controller:
-    type: "position_controllers/JointPositionController"
+    type: "position_controllers/JointGroupPositionController"
     joints:
       - left_hand_j0
       - left_hand_j1
