@@ -75,9 +75,9 @@ public:
 
 	typedef std::map<std::string, std::pair<M3Chain, int> > map_t;
 	typedef map_t::iterator map_it_t;
-
+	
 	MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr, std::string hw_interface_mode) :
-			bot_shr_ptr_(NULL) {
+			bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL) {
 		using namespace hardware_interface;
 
 		assert(bot_shr_ptr != NULL);
@@ -108,12 +108,6 @@ public:
 		ndof_right_hand_ = bot_shr_ptr_->GetNdof(RIGHT_HAND);
 		ndof_left_hand_ = bot_shr_ptr_->GetNdof(LEFT_HAND);
 		ndof_zlift_ = 1;
-		std::cout << "#####################################" << std::endl;
-		std::cout << "ndof ra " << ndof_right_arm_ << " la " << ndof_left_arm_
-				<< " lh " << ndof_left_hand_ << " rh " << ndof_right_hand_
-				<< " h " << ndof_head_ << " torso " << ndof_torso_ << std::endl;
-		std::cout << "zLift power on " << zlift_shr_ptr_->IsMotorPowerOn() << std::endl;
-		std::cout << "zLift mm per deg " << zlift_shr_ptr_->Getcb_mm_per_deg() << std::endl;
 
 		ndof_ = ndof_right_arm_ + ndof_left_arm_ + ndof_head_ + ndof_right_hand_
 				+ ndof_left_hand_ + ndof_torso_ + ndof_zlift_;
@@ -141,19 +135,7 @@ public:
 		iend_ = ndof_right_arm_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "right_arm_j" + std::to_string(i);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -162,19 +144,7 @@ public:
 		iend_ += ndof_left_arm_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "left_arm_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -183,19 +153,7 @@ public:
 		iend_ += ndof_torso_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "torso_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -205,19 +163,7 @@ public:
 		iend_ += ndof_head_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "head_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -226,19 +172,7 @@ public:
 		iend_ += ndof_right_hand_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "right_hand_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -247,19 +181,7 @@ public:
 		iend_ += ndof_left_hand_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "left_hand_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i],
-							&joint_vel_[i], &joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
-
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 			//jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
 
 		}
@@ -268,18 +190,7 @@ public:
 		iend_ += ndof_zlift_;
 		for (int i = istart_; i < iend_; i++) {
 			joint_name_[i] = "zlift_j" + std::to_string(i - istart_);
-			js_interface_.registerHandle(
-					JointStateHandle(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-							&joint_effort_[i]));
-			pj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_pos_command_[i]));
-			ej_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_effort_command_[i]));
-			vj_interface_.registerHandle(
-					JointHandle(js_interface_.getHandle(joint_name_[i]),
-							&joint_vel_command_[i]));
+			registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i], &joint_effort_[i], &joint_pos_command_[i], &joint_effort_command_[i], &joint_vel_command_[i]);
 		}
 		registerInterface(&js_interface_);
 		registerInterface(&pj_interface_);
@@ -374,12 +285,6 @@ public:
 	void write() {
 		//if (safety_check())
 		bot_shr_ptr_->SetMotorPowerOn();
-		if(!printed)
-		{
-			std::cout << "zLift power on " << zlift_shr_ptr_->IsMotorPowerOn() << std::endl;
-			printed =true;
-		}
-		//zlift_shr_ptr_->SetMotorPowerOn();
 		// RIGHT_ARM
 		istart_ = 0;
 		iend_ = ndof_right_arm_;
@@ -524,7 +429,7 @@ public:
 		iend_ += ndof_zlift_;
 		for (int i = istart_; i < iend_; i++) {
 			zlift_shr_ptr_->SetDesiredStiffness(1.0);
-			zlift_shr_ptr_->SetSlewRate(1.0*2000.0); //TODO READ CONFIG FOR MAX_Q_SLEWRATE
+			zlift_shr_ptr_->SetSlewRate(1.0*((M3JointParam*)zlift_shr_ptr_->GetParam())->max_q_slew_rate());
 			switch (joint_mode_) {
 			case VELOCITY:
 				zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
@@ -554,15 +459,21 @@ private:
 	m3::M3Humanoid* bot_shr_ptr_;
 	m3::M3JointZLift* zlift_shr_ptr_;
 
-	bool printed;
-
 	hardware_interface::JointStateInterface js_interface_;
 	hardware_interface::PositionJointInterface pj_interface_;
 	hardware_interface::EffortJointInterface ej_interface_;
 	hardware_interface::VelocityJointInterface vj_interface_;
-
+	
+	void registerHandles(std::string name, double* pos, double* vel, double* eff, double* poscmd, double* effcmd, double* velcmd) {
+	    js_interface_.registerHandle(hardware_interface::JointStateHandle(name, pos, vel, eff));
+	    pj_interface_.registerHandle(hardware_interface::JointHandle(js_interface_.getHandle(name), poscmd));
+	    ej_interface_.registerHandle(hardware_interface::JointHandle(js_interface_.getHandle(name), effcmd));
+	    vj_interface_.registerHandle(hardware_interface::JointHandle(js_interface_.getHandle(name), velcmd));
+	  
+	}
+	
 	enum joint_mode_t {
-		POSITION, EFFORT, VELOCITY
+	    POSITION, EFFORT, VELOCITY
 	};
 	joint_mode_t joint_mode_;
 
