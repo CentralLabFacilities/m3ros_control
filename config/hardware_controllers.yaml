@@ -1,5 +1,5 @@
 meka_roscontrol:
- # Publish all joint states -----------------------------------
+  # Publish all joint states -----------------------------------
   joint_state_controller:
     type: joint_state_controller/JointStateController
     publish_rate: 50  
@@ -13,11 +13,18 @@ meka_roscontrol:
     type: joint_mode_controller/JointModeController
     joint_mode: 2 # velocity
 
-  left_hand_wrist_controller:
-    type: "position_controllers/JointPositionController"
-    joint: left_arm_j4
-
   # Position only controllers ----------------------------------------------
+
+  zlift_position_controller:
+    type: "position_controllers/JointPositionController"
+    joint: zlift_j0
+
+  torso_position_controller:
+    type: "position_controllers/JointPositionController"
+    joints:
+      - torso_j0
+      - torso_j1
+
   right_position_controller:
     type: "position_controllers/JointPositionController"
     joints:
@@ -39,6 +46,24 @@ meka_roscontrol:
       - left_arm_j4
       - left_arm_j5
       - left_arm_j6
+
+  right_hand_position_controller:
+    type: "position_controllers/JointPositionController"
+    joints:
+      - right_hand_j0
+      - right_hand_j1
+      - right_hand_j2
+      - right_hand_j3
+      - right_hand_j4
+
+  left_hand_position_controller:
+    type: "position_controllers/JointPositionController"
+    joints:
+      - left_hand_j0
+      - left_hand_j1
+      - left_hand_j2
+      - left_hand_j3
+      - left_hand_j4
 
   # Position - Right and Left Joint Position Trajectory Controllers -------------------
   left_position_trajectory_controller:

@@ -1,0 +1,6 @@
+<launch>
+  <include file="$(find m3ros_control)/launch/meka_controllers_state.launch"/>
+  <include file="$(find m3ros_control)/launch/meka_controllers_body.launch"/>
+  <include file="$(find m3ros_control)/launch/meka_controllers_arms.launch"/>
+  <include file="$(find m3ros_control)/launch/meka_controllers_hands.launch"/>
+</launch>

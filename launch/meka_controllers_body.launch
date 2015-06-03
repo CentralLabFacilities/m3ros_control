@@ -1,0 +1,10 @@
+<launch>
+
+<rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+
+<!-- upper body -->
+<group ns="meka_roscontrol" >
+  <node pkg="controller_manager" type="spawner" output="screen" name="zlift_position_controller" args="--shutdown-timeout=2.0 zlift_position_controller torso_position_controller"/>
+</group>
+</launch>
+

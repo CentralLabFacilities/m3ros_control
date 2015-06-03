@@ -1,0 +1,20 @@
+<launch>
+
+<!-- Robot parameter server -->
+  <!-- torso does not need mimic in real world, component provides it -->
+  <param name="robot_description" command="$(find xacro)/xacro.py '$(find meka_description)/robots/bie.urdf.xacro' hand_mimic:=1 torso_mimic:=0 " />
+<rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+<!-- js controllers -->
+<group ns="meka_roscontrol" >
+  <node pkg="controller_manager" type="spawner" output="screen" name="meka_js" args="joint_state_controller"/>
+</group>
+
+<!-- full js pub -->
+ <node pkg="joint_state_publisher" type="joint_state_publisher" output="screen" name="meka_joint_state_publisher">
+   <rosparam param="source_list">["/meka_roscontrol/joint_states"] </rosparam>
+   <rosparam param="rate">50</rosparam>
+ </node>
+
+
+</launch>
+

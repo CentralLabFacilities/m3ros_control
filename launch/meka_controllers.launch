@@ -1,15 +1,20 @@
 <launch>
 <!-- Robot parameter server -->
-  <param name="robot_description" command="$(find xacro)/xacro.py '$(find meka_description)/robots/bie.urdf.xacro'" />
+  <!-- torso does not need mimic in real world, component provides it -->
+  <param name="robot_description" command="$(find xacro)/xacro.py '$(find meka_description)/robots/bie.urdf.xacro' hand_mimic:=1 torso_mimic:=0 " />
 
 
 <rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
-<!-- Spawn the controllers -->
-<!--node pkg="controller_manager" type="spawner" output="screen" name="right_th" args="right_position_controller"/>
-<node pkg="controller_manager" type="spawner" output="screen" name="left_th" args="left_position_controller"/-->
+<!-- js controllers -->
+<node pkg="controller_manager" type="spawner" output="screen" name="meka_js" args="joint_state_controller"/>
 
-<node pkg="controller_manager" type="spawner" output="screen" name="right_position_trajectory_controller" args="right_position_trajectory_controller"/>
-<node pkg="controller_manager" type="spawner" output="screen" name="left_position_trajectory_controller" args="left_position_trajectory_controller"/>
+<!-- hand controllers -->
+<node pkg="controller_manager" type="spawner" output="screen" name="arm_trajectory_controllers" args="right_position_controller left_position_controller"/>
+
+<!-- arm controllers -->
+<node pkg="controller_manager" type="spawner" output="screen" name="arm_trajectory_controllers" args="right_position_trajectory_controller left_position_trajectory_controller"/>
+
+<!-- upper body -->
+<node pkg="controller_manager" type="spawner" output="screen" name="zlift_position_controller" args="zlift_position_controller torso_position_controller"/>
 
 </launch>
-
