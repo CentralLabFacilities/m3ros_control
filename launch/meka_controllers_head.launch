@@ -1,0 +1,12 @@
+<launch>
+
+<rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+
+<!-- head controllers -->
+<group ns="meka_roscontrol" >
+  <node pkg="controller_manager" type="spawner" output="screen" name="head_controller" args="--shutdown-timeout=2.0 head_position_controller"/>
+</group>
+
+
+</launch>
+

@@ -25,6 +25,12 @@ meka_roscontrol:
       - torso_j0
       - torso_j1
 
+  head_position_controller:
+    type: "position_controllers/JointGroupPositionController"
+    joints:
+      - head_j0
+      - head_j1
+
   right_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:
