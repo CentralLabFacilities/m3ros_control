@@ -103,7 +103,8 @@ public:
 
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode) :
-            bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL), master_state_(STATE_ESTOP), allow_running_(false)
+            bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL), master_state_(STATE_ESTOP),
+            allow_running_(false), frozen_(false)
     {
         using namespace hardware_interface;
 
@@ -145,6 +146,7 @@ public:
         joint_effort_.resize(ndof_);
         joint_effort_command_.resize(ndof_);
         joint_err_.resize(ndof_);
+        frozen_joint_command_.resize(ndof_);
 
         //joint_mode_ = new int[ndof_];
 
@@ -346,19 +348,19 @@ public:
     void write()
     {
         //if (safety_check())
-        
+        bot_shr_ptr_->SetMotorPowerOn();
         // in standby state and above, allow motor power
-        if(master_state_ >= STATE_STANDBY)
+        /*if(master_state_ >= STATE_STANDBY)
         {
-            bot_shr_ptr_->SetMotorPowerOn();
+            
         }
         else
         {
             bot_shr_ptr_->SetMotorPowerOff();
-        }
+        }*/
 
         // in ready state, override joint_commands to freeze movements
-        if(master_state_ == STATE_STANDBY)
+        if(master_state_ == STATE_READY)
         {
             freezeJoints(joint_mode_);
         }
@@ -570,6 +572,7 @@ private:
     
     int master_state_;
     bool allow_running_;
+    bool frozen_;
     joint_mode_t joint_mode_;
 
     std::vector<double> joint_effort_command_;
@@ -579,6 +582,7 @@ private:
     std::vector<double> joint_vel_;
     std::vector<double> joint_vel_command_;
     std::vector<double> joint_err_;
+    std::vector<double> frozen_joint_command_;
     std::vector<std::string> joint_name_;
     
     void registerHandles(std::string name, double* pos, double* vel,
@@ -611,10 +615,13 @@ private:
                 joint_err_[i] = std::fabs(joint_vel_command_[i]);
                 if (joint_err_[i] > ACCEPTABLE_VEL_MIRROR)
                     allow_running_=false;
-                
-                joint_vel_command_[i] = 0.0;
-                
+                // save current command
+                if(!frozen_)
+                    frozen_joint_command_[i] = 0.0;
+                // enforce to frozen position
+                joint_vel_command_[i] = frozen_joint_command_[i];
             }
+            frozen_=true;
             break;
         case POSITION:
             // freeze means maintain current position
@@ -625,9 +632,15 @@ private:
                 joint_err_[i] = std::fabs(joint_pos_command_[i]-joint_pos_[i]);
                 if (joint_err_[i] > ACCEPTABLE_POS_MIRROR)
                     allow_running_=false;
-                    
-                joint_pos_command_[i] = joint_pos_[i];
+                // save current command
+                if(!frozen_)
+                    frozen_joint_command_[i] = joint_pos_[i];
+                // enforce to frozen position
+                joint_pos_command_[i] = frozen_joint_command_[i];
             }
+            if(!frozen_)
+                m3rt::M3_INFO("Frozen to current position\n");
+            frozen_=true;
             break;
         case EFFORT:
             // freeze means maintain current effort ?
@@ -638,14 +651,18 @@ private:
                 joint_err_[i] = std::fabs(joint_effort_command_[i]-joint_effort_[i]);
                 if (joint_err_[i] > ACCEPTABLE_EFFORT_MIRROR)
                     allow_running_=false;
-                joint_effort_command_[i] = joint_effort_[i];
+                // save current command
+                if(!frozen_)
+                    frozen_joint_command_[i] = joint_effort_[i];
+                // enforce to frozen position
+                joint_effort_command_[i] = frozen_joint_command_[i];
             }
+            frozen_=true;
             break;
         default:
             allow_running_ = false;
             break;
         }
-
     }
 
 public: 
@@ -658,7 +675,12 @@ public:
             if (master_state_ == STATE_RUNNING)
                 allow_running_=false;
                 //switch controller off
+            if (master_state_ != STATE_ESTOP)
+            {
+                m3rt::M3_INFO("ESTOP detected\n");
+            }
             master_state_ = STATE_ESTOP;
+            frozen_=false;
             break;
             
         case STATE_CMD_STOP:
@@ -666,6 +688,7 @@ public:
                 allow_running_=false;
                 //switch controller off
             master_state_ = STATE_STANDBY;
+            frozen_=false;
             break;
 
         case STATE_CMD_FREEZE:
@@ -681,6 +704,7 @@ public:
                 if (allow_running_)
                 {
                     master_state_ = STATE_RUNNING;
+                    frozen_=false;
                 }
                 else
                 {
@@ -792,8 +816,8 @@ protected:
             cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                     *ros_nh_ptr_);
                     
-             ros::ServiceServer service =  ros_nh_ptr_->advertiseService("change_state", 
-                &MekaRobotHW::changeStateCallback, hw_ptr_); 
+            srv_ptr_ =  new ros::ServiceServer(ros_nh_ptr_->advertiseService("change_state", 
+                &MekaRobotHW::changeStateCallback, hw_ptr_)); 
         }
         else
         {
@@ -810,6 +834,8 @@ protected:
     {
         if (spinner_ptr_ != NULL)
             spinner_ptr_->stop();
+        if (srv_ptr_ != NULL)
+            srv_ptr_->shutdown();
         if (ros_nh_ptr_ != NULL)
             ros_nh_ptr_->shutdown();
     }
@@ -821,6 +847,7 @@ private:
     m3::M3Pwr* pwr_shr_ptr_;
     ros::Duration period_;
     ros::NodeHandle* ros_nh_ptr_;
+    ros::ServiceServer* srv_ptr_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
     MekaRobotHW* hw_ptr_;
     controller_manager::ControllerManager* cm_ptr_;
