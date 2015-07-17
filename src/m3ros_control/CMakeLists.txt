@@ -23,7 +23,6 @@ add_service_files( DIRECTORY ${PROJECT_ROOT}/srv
   FILES ControlStateCommand.srv
 )
 
-generate_messages()
 
 
 set(LIBRARIES ${LIBRARIES} ${catkin_LIBRARIES})
@@ -105,10 +104,19 @@ PROTOBUF_GENERATE_PYTHON(PySources ${PROJECT_PYTHON_DIR}/${PROJECT_NAME} ${Contr
 add_custom_target(${PROJECT_NAME}_python_protobuf_output ALL DEPENDS ${PySources}) # force the generation
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}/${PROJECT_NAME}) # To create a directory at build time
 
+generate_messages()
+
+
 ## Declare a cpp executable
 add_library(${PROJECT_NAME} ros_control_component.cpp factory_proxy.cpp ros_control_component.pb.cc)
-#add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencpp ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
 
+## catkin overwrites the output dir to the devel space due to message generation, enforcing again here
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_OUTPUT_DIRECTORY})
+
+install(DIRECTORY ${CATKIN_DEVEL_PREFIX}/lib/
+    DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+)
