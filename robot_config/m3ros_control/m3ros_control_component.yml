@@ -1,4 +1,5 @@
 name: m3ros_control_component
 humanoid: m3humanoid_right_left_arm_torso_head_mr18
 zlift: m3joint_mz7_j0
+pwr_component: m3pwr_pwr038
 hw_interface_mode: position #effort

@@ -15,8 +15,17 @@ find_package(catkin REQUIRED COMPONENTS
   hardware_interface
   controller_interface 
   control_toolbox
+  message_generation
   #realtime_tools
 )
+
+add_service_files( DIRECTORY ${PROJECT_ROOT}/srv
+  FILES ControlStateCommand.srv
+)
+
+generate_messages()
+
+
 set(LIBRARIES ${LIBRARIES} ${catkin_LIBRARIES})
 set(INCLUDE_DIRS ${INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 
@@ -98,6 +107,7 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}
 
 ## Declare a cpp executable
 add_library(${PROJECT_NAME} ros_control_component.cpp factory_proxy.cpp ros_control_component.pb.cc)
+#add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})

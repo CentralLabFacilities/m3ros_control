@@ -32,11 +32,31 @@ extern "C"
 #include <hardware_interface/robot_hw.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
+#include <m3ros_control/ControlStateCommand.h>
 //#include <hardware_interface/joint_mode_interface.h>
 
 ////////// Some defs
 #define mm2m(a) (mReal((a))/1000) //millimeters to meters
 #define m2mm(a) (mReal((a))*1000) //meters to millimeters
+
+// master states
+#define STATE_ESTOP     0
+#define STATE_UNKNOWN   0
+#define STATE_STANDBY   1
+#define STATE_READY     2
+#define STATE_RUNNING   3
+
+// state transitions command
+#define STATE_CMD_ESTOP     0
+#define STATE_CMD_STOP      1
+#define STATE_CMD_FREEZE    2
+#define STATE_CMD_START     3
+
+// acceptable errors between controller output and current state
+// to verify controllers were reset to current state
+#define ACCEPTABLE_VEL_MIRROR       0.05
+#define ACCEPTABLE_POS_MIRROR       0.1
+#define ACCEPTABLE_EFFORT_MIRROR    1.0
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -83,7 +103,7 @@ public:
 
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode) :
-            bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL)
+            bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL), master_state_(STATE_ESTOP), allow_running_(false)
     {
         using namespace hardware_interface;
 
@@ -124,6 +144,7 @@ public:
         joint_vel_command_.resize(ndof_);
         joint_effort_.resize(ndof_);
         joint_effort_command_.resize(ndof_);
+        joint_err_.resize(ndof_);
 
         //joint_mode_ = new int[ndof_];
 
@@ -325,188 +346,209 @@ public:
     void write()
     {
         //if (safety_check())
-        bot_shr_ptr_->SetMotorPowerOn();
-        // RIGHT_ARM
-        istart_ = 0;
-        iend_ = ndof_right_arm_;
-        for (int i = istart_; i < iend_; i++)
+        
+        // in standby state and above, allow motor power
+        if(master_state_ >= STATE_STANDBY)
         {
-            bot_shr_ptr_->SetStiffness(RIGHT_ARM, i - istart_, 1.0);
-            bot_shr_ptr_->SetSlewRateProportional(RIGHT_ARM, i - istart_, 1.0);
-            switch (joint_mode_)
-            {
-            case VELOCITY:
-                bot_shr_ptr_->SetModeThetaDotGc(RIGHT_ARM, i - istart_);
-                bot_shr_ptr_->SetThetaDotDeg(RIGHT_ARM, i - istart_,
-                        RAD2DEG(joint_vel_command_[i]));
-                break;
-            case POSITION:
-                bot_shr_ptr_->SetModeThetaGc(RIGHT_ARM, i - istart_);
-                bot_shr_ptr_->SetThetaDeg(RIGHT_ARM, i - istart_,
-                        RAD2DEG(joint_pos_command_[i]));
-                break;
-            case EFFORT:
-                bot_shr_ptr_->SetModeTorqueGc(RIGHT_ARM, i - istart_);
-                bot_shr_ptr_->SetTorque_mNm(RIGHT_ARM, i - istart_,
-                        m2mm(joint_effort_command_[i]));
-                break;
-            default:
-                break;
-            }
+            bot_shr_ptr_->SetMotorPowerOn();
         }
-        // LEFT_ARM
-        istart_ += ndof_right_arm_;
-        iend_ += ndof_left_arm_;
-        for (int i = istart_; i < iend_; i++)
+        else
         {
-            bot_shr_ptr_->SetStiffness(LEFT_ARM, i - istart_, 1.0);
-            bot_shr_ptr_->SetSlewRateProportional(LEFT_ARM, i - istart_, 1.0);
-            switch (joint_mode_)
-            {
-            case VELOCITY:
-                bot_shr_ptr_->SetModeThetaDotGc(LEFT_ARM, i - istart_);
-                bot_shr_ptr_->SetThetaDotDeg(LEFT_ARM, i - istart_,
-                        RAD2DEG(joint_vel_command_[i]));
-                break;
-            case POSITION:
-                bot_shr_ptr_->SetModeThetaGc(LEFT_ARM, i - istart_);
-                bot_shr_ptr_->SetThetaDeg(LEFT_ARM, i - istart_,
-                        RAD2DEG(joint_pos_command_[i]));
-                break;
-            case EFFORT:
-                bot_shr_ptr_->SetModeTorqueGc(LEFT_ARM, i - istart_);
-                bot_shr_ptr_->SetTorque_mNm(LEFT_ARM, i - istart_,
-                        m2mm(joint_effort_command_[i]));
-                break;
-            default:
-                break;
-            }
+            bot_shr_ptr_->SetMotorPowerOff();
         }
-        // TORSO
-        istart_ += ndof_left_arm_;
-        iend_ += ndof_torso_;
-        for (int i = istart_; i < iend_; i++)
+
+        // in ready state, override joint_commands to freeze movements
+        if(master_state_ == STATE_STANDBY)
         {
-            //j1 slave is a copy of j1, do not write j1 slave value to the actuator
-            if (i - istart_ < 2)
+            freezeJoints(joint_mode_);
+        }
+
+        // in ready state and above, allow writing
+        if(master_state_ >= STATE_READY)
+        {
+            // RIGHT_ARM
+            istart_ = 0;
+            iend_ = ndof_right_arm_;
+            for (int i = istart_; i < iend_; i++)
             {
-                bot_shr_ptr_->SetStiffness(TORSO, i - istart_, 1.0);
-                bot_shr_ptr_->SetSlewRateProportional(TORSO, i - istart_, 1.0);
+                bot_shr_ptr_->SetStiffness(RIGHT_ARM, i - istart_, 1.0);
+                bot_shr_ptr_->SetSlewRateProportional(RIGHT_ARM, i - istart_, 1.0);
+                switch (joint_mode_)
+                {
+                case VELOCITY:
+                    bot_shr_ptr_->SetModeThetaDotGc(RIGHT_ARM, i - istart_);
+                    bot_shr_ptr_->SetThetaDotDeg(RIGHT_ARM, i - istart_,
+                            RAD2DEG(joint_vel_command_[i]));
+                    break;
+                case POSITION:
+                    bot_shr_ptr_->SetModeThetaGc(RIGHT_ARM, i - istart_);
+                    bot_shr_ptr_->SetThetaDeg(RIGHT_ARM, i - istart_,
+                            RAD2DEG(joint_pos_command_[i]));
+                    break;
+                case EFFORT:
+                    bot_shr_ptr_->SetModeTorqueGc(RIGHT_ARM, i - istart_);
+                    bot_shr_ptr_->SetTorque_mNm(RIGHT_ARM, i - istart_,
+                            m2mm(joint_effort_command_[i]));
+                    break;
+                default:
+                    break;
+                }
+            }
+            // LEFT_ARM
+            istart_ += ndof_right_arm_;
+            iend_ += ndof_left_arm_;
+            for (int i = istart_; i < iend_; i++)
+            {
+                bot_shr_ptr_->SetStiffness(LEFT_ARM, i - istart_, 1.0);
+                bot_shr_ptr_->SetSlewRateProportional(LEFT_ARM, i - istart_, 1.0);
+                switch (joint_mode_)
+                {
+                case VELOCITY:
+                    bot_shr_ptr_->SetModeThetaDotGc(LEFT_ARM, i - istart_);
+                    bot_shr_ptr_->SetThetaDotDeg(LEFT_ARM, i - istart_,
+                            RAD2DEG(joint_vel_command_[i]));
+                    break;
+                case POSITION:
+                    bot_shr_ptr_->SetModeThetaGc(LEFT_ARM, i - istart_);
+                    bot_shr_ptr_->SetThetaDeg(LEFT_ARM, i - istart_,
+                            RAD2DEG(joint_pos_command_[i]));
+                    break;
+                case EFFORT:
+                    bot_shr_ptr_->SetModeTorqueGc(LEFT_ARM, i - istart_);
+                    bot_shr_ptr_->SetTorque_mNm(LEFT_ARM, i - istart_,
+                            m2mm(joint_effort_command_[i]));
+                    break;
+                default:
+                    break;
+                }
+            }
+            // TORSO
+            istart_ += ndof_left_arm_;
+            iend_ += ndof_torso_;
+            for (int i = istart_; i < iend_; i++)
+            {
+                //j1 slave is a copy of j1, do not write j1 slave value to the actuator
+                if (i - istart_ < 2)
+                {
+                    bot_shr_ptr_->SetStiffness(TORSO, i - istart_, 1.0);
+                    bot_shr_ptr_->SetSlewRateProportional(TORSO, i - istart_, 1.0);
+                    switch (joint_mode_)
+                    {
+                    case POSITION:
+                        bot_shr_ptr_->SetModeThetaGc(TORSO, i - istart_);
+                        bot_shr_ptr_->SetThetaDeg(TORSO, i - istart_,
+                                RAD2DEG(joint_pos_command_[i]));
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+            // HEAD
+            istart_ += ndof_torso_;
+            iend_ += ndof_head_;
+            for (int i = istart_; i < iend_; i++)
+            {
+                bot_shr_ptr_->SetStiffness(HEAD, i - istart_, 1.0);
+                bot_shr_ptr_->SetSlewRateProportional(HEAD, i - istart_, 1.0);
                 switch (joint_mode_)
                 {
                 case POSITION:
-                    bot_shr_ptr_->SetModeThetaGc(TORSO, i - istart_);
-                    bot_shr_ptr_->SetThetaDeg(TORSO, i - istart_,
+                    bot_shr_ptr_->SetModeTheta(HEAD, i - istart_);
+                    bot_shr_ptr_->SetThetaDeg(HEAD, i - istart_,
                             RAD2DEG(joint_pos_command_[i]));
                     break;
                 default:
                     break;
                 }
             }
-        }
-        // HEAD
-        istart_ += ndof_torso_;
-        iend_ += ndof_head_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            bot_shr_ptr_->SetStiffness(HEAD, i - istart_, 1.0);
-            bot_shr_ptr_->SetSlewRateProportional(HEAD, i - istart_, 1.0);
-            switch (joint_mode_)
+            // RIGHT_HAND
+            istart_ += ndof_head_;
+            iend_ += ndof_right_hand_;
+            for (int i = istart_; i < iend_; i++)
             {
-            case POSITION:
-                bot_shr_ptr_->SetModeTheta(HEAD, i - istart_);
-                bot_shr_ptr_->SetThetaDeg(HEAD, i - istart_,
-                        RAD2DEG(joint_pos_command_[i]));
-                break;
-            default:
-                break;
+                bot_shr_ptr_->SetStiffness(RIGHT_HAND, i - istart_, 1.0);
+                bot_shr_ptr_->SetSlewRateProportional(RIGHT_HAND, i - istart_, 1.0);
+                switch (joint_mode_)
+                {
+                case VELOCITY:
+                    bot_shr_ptr_->SetModeThetaDotGc(RIGHT_HAND, i - istart_);
+                    bot_shr_ptr_->SetThetaDotDeg(RIGHT_HAND, i - istart_,
+                            RAD2DEG(joint_vel_command_[i]));
+                    break;
+                case POSITION:
+                    bot_shr_ptr_->SetModeThetaGc(RIGHT_HAND, i - istart_);
+                    bot_shr_ptr_->SetThetaDeg(RIGHT_HAND, i - istart_,
+                            RAD2DEG(joint_pos_command_[i]));
+                    break;
+                case EFFORT:
+                    bot_shr_ptr_->SetModeTorqueGc(RIGHT_HAND, i - istart_);
+                    bot_shr_ptr_->SetTorque_mNm(RIGHT_HAND, i - istart_,
+                            m2mm(joint_effort_command_[i]));
+                    break;
+                default:
+                    break;
+                }
             }
-        }
-        // RIGHT_HAND
-        istart_ += ndof_head_;
-        iend_ += ndof_right_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            bot_shr_ptr_->SetStiffness(RIGHT_HAND, i - istart_, 1.0);
-            bot_shr_ptr_->SetSlewRateProportional(RIGHT_HAND, i - istart_, 1.0);
-            switch (joint_mode_)
+            // LEFT_HAND
+            istart_ += ndof_right_hand_;
+            iend_ += ndof_left_hand_;
+            for (int i = istart_; i < iend_; i++)
             {
-            case VELOCITY:
-                bot_shr_ptr_->SetModeThetaDotGc(RIGHT_HAND, i - istart_);
-                bot_shr_ptr_->SetThetaDotDeg(RIGHT_HAND, i - istart_,
-                        RAD2DEG(joint_vel_command_[i]));
-                break;
-            case POSITION:
-                bot_shr_ptr_->SetModeThetaGc(RIGHT_HAND, i - istart_);
-                bot_shr_ptr_->SetThetaDeg(RIGHT_HAND, i - istart_,
-                        RAD2DEG(joint_pos_command_[i]));
-                break;
-            case EFFORT:
-                bot_shr_ptr_->SetModeTorqueGc(RIGHT_HAND, i - istart_);
-                bot_shr_ptr_->SetTorque_mNm(RIGHT_HAND, i - istart_,
-                        m2mm(joint_effort_command_[i]));
-                break;
-            default:
-                break;
+                bot_shr_ptr_->SetStiffness(LEFT_HAND, i - istart_, 1.0);
+                bot_shr_ptr_->SetSlewRateProportional(LEFT_HAND, i - istart_, 1.0);
+                switch (joint_mode_)
+                {
+                case VELOCITY:
+                    bot_shr_ptr_->SetModeThetaDotGc(LEFT_HAND, i - istart_);
+                    bot_shr_ptr_->SetThetaDotDeg(LEFT_HAND, i - istart_,
+                            RAD2DEG(joint_vel_command_[i]));
+                    break;
+                case POSITION:
+                    bot_shr_ptr_->SetModeThetaGc(LEFT_HAND, i - istart_);
+                    bot_shr_ptr_->SetThetaDeg(LEFT_HAND, i - istart_,
+                            RAD2DEG(joint_pos_command_[i]));
+                    break;
+                case EFFORT:
+                    bot_shr_ptr_->SetModeTorqueGc(LEFT_HAND, i - istart_);
+                    bot_shr_ptr_->SetTorque_mNm(LEFT_HAND, i - istart_,
+                            m2mm(joint_effort_command_[i]));
+                    break;
+                default:
+                    break;
+                }
             }
-        }
-        // LEFT_HAND
-        istart_ += ndof_right_hand_;
-        iend_ += ndof_left_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            bot_shr_ptr_->SetStiffness(LEFT_HAND, i - istart_, 1.0);
-            bot_shr_ptr_->SetSlewRateProportional(LEFT_HAND, i - istart_, 1.0);
-            switch (joint_mode_)
+            // ZLIFT
+            istart_ += ndof_left_hand_;
+            iend_ += ndof_zlift_;
+            for (int i = istart_; i < iend_; i++)
             {
-            case VELOCITY:
-                bot_shr_ptr_->SetModeThetaDotGc(LEFT_HAND, i - istart_);
-                bot_shr_ptr_->SetThetaDotDeg(LEFT_HAND, i - istart_,
-                        RAD2DEG(joint_vel_command_[i]));
-                break;
-            case POSITION:
-                bot_shr_ptr_->SetModeThetaGc(LEFT_HAND, i - istart_);
-                bot_shr_ptr_->SetThetaDeg(LEFT_HAND, i - istart_,
-                        RAD2DEG(joint_pos_command_[i]));
-                break;
-            case EFFORT:
-                bot_shr_ptr_->SetModeTorqueGc(LEFT_HAND, i - istart_);
-                bot_shr_ptr_->SetTorque_mNm(LEFT_HAND, i - istart_,
-                        m2mm(joint_effort_command_[i]));
-                break;
-            default:
-                break;
-            }
-        }
-        // ZLIFT
-        istart_ += ndof_left_hand_;
-        iend_ += ndof_zlift_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            zlift_shr_ptr_->SetDesiredStiffness(1.0);
-            zlift_shr_ptr_->SetSlewRate(
-                    1.0
-                            * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
-            switch (joint_mode_)
-            {
-            case VELOCITY:
-                zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
-                zlift_shr_ptr_->SetDesiredPosDot(joint_vel_command_[i]);
-                break;
-            case POSITION:
-                zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
+                zlift_shr_ptr_->SetDesiredStiffness(1.0);
+                zlift_shr_ptr_->SetSlewRate(
+                        1.0
+                                * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
+                switch (joint_mode_)
+                {
+                case VELOCITY:
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
+                    zlift_shr_ptr_->SetDesiredPosDot(joint_vel_command_[i]);
+                    break;
+                case POSITION:
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
 
-                zlift_shr_ptr_->SetDesiredPos(joint_pos_command_[i]);
-                break;
-            case EFFORT:
-                // P.L. do nothin
-                break;
-            default:
-                break;
+                    zlift_shr_ptr_->SetDesiredPos(joint_pos_command_[i]);
+                    break;
+                case EFFORT:
+                    // P.L. do nothin
+                    break;
+                default:
+                    break;
+                }
             }
         }
-
     }
+
+    
 
 private:
 
@@ -520,7 +562,25 @@ private:
     hardware_interface::PositionJointInterface pj_interface_;
     hardware_interface::EffortJointInterface ej_interface_;
     hardware_interface::VelocityJointInterface vj_interface_;
+    
+    enum joint_mode_t
+    {
+        POSITION, EFFORT, VELOCITY
+    };
+    
+    int master_state_;
+    bool allow_running_;
+    joint_mode_t joint_mode_;
 
+    std::vector<double> joint_effort_command_;
+    std::vector<double> joint_effort_;
+    std::vector<double> joint_pos_;
+    std::vector<double> joint_pos_command_;
+    std::vector<double> joint_vel_;
+    std::vector<double> joint_vel_command_;
+    std::vector<double> joint_err_;
+    std::vector<std::string> joint_name_;
+    
     void registerHandles(std::string name, double* pos, double* vel,
             double* eff, double* poscmd, double* effcmd, double* velcmd)
     {
@@ -537,21 +597,120 @@ private:
                         velcmd));
 
     }
-
-    enum joint_mode_t
+    
+    void freezeJoints(joint_mode_t jm)
     {
-        POSITION, EFFORT, VELOCITY
-    };
-    joint_mode_t joint_mode_;
+        switch (jm)
+        {
+        case VELOCITY:
+            // freeze means zero velocity
+            allow_running_ = true;
+            for (int i = 0; i < ndof_; i++)
+            {
+                // measure error between controller command and freeze command
+                joint_err_[i] = std::fabs(joint_vel_command_[i]);
+                if (joint_err_[i] > ACCEPTABLE_VEL_MIRROR)
+                    allow_running_=false;
+                
+                joint_vel_command_[i] = 0.0;
+                
+            }
+            break;
+        case POSITION:
+            // freeze means maintain current position
+            allow_running_ = true;
+            for (int i = 0; i < ndof_; i++)
+            {
+                // measure error between controller command and freeze command
+                joint_err_[i] = std::fabs(joint_pos_command_[i]-joint_pos_[i]);
+                if (joint_err_[i] > ACCEPTABLE_POS_MIRROR)
+                    allow_running_=false;
+                    
+                joint_pos_command_[i] = joint_pos_[i];
+            }
+            break;
+        case EFFORT:
+            // freeze means maintain current effort ?
+            allow_running_ = true;
+            for (int i = 0; i < ndof_; i++)
+            {
+                // measure error between controller command and freeze command
+                joint_err_[i] = std::fabs(joint_effort_command_[i]-joint_effort_[i]);
+                if (joint_err_[i] > ACCEPTABLE_EFFORT_MIRROR)
+                    allow_running_=false;
+                joint_effort_command_[i] = joint_effort_[i];
+            }
+            break;
+        default:
+            allow_running_ = false;
+            break;
+        }
 
-    std::vector<double> joint_effort_command_;
-    std::vector<double> joint_effort_;
-    std::vector<double> joint_pos_;
-    std::vector<double> joint_pos_command_;
-    std::vector<double> joint_vel_;
-    std::vector<double> joint_vel_command_;
-    std::vector<std::string> joint_name_;
+    }
+
+public: 
+
+    void changeState(const int state_cmd)
+    {
+        switch (state_cmd)
+        {
+        case STATE_CMD_ESTOP:
+            if (master_state_ == STATE_RUNNING)
+                allow_running_=false;
+                //switch controller off
+            master_state_ = STATE_ESTOP;
+            break;
+            
+        case STATE_CMD_STOP:
+            if (master_state_ == STATE_RUNNING)
+                allow_running_=false;
+                //switch controller off
+            master_state_ = STATE_STANDBY;
+            break;
+
+        case STATE_CMD_FREEZE:
+            if (master_state_ == STATE_RUNNING)
+                allow_running_=false;
+                //switch controller off
+            master_state_ = STATE_READY;
+            break;
+
+        case STATE_CMD_START:
+            if (master_state_ != STATE_RUNNING)
+            {
+                if (allow_running_)
+                {
+                    master_state_ = STATE_RUNNING;
+                }
+                else
+                {
+                    
+                    m3rt::M3_ERR(
+                        "Controller did not converge to freeze position, \
+                         cannot switch to running...\n");
+                }
+            }
+
+            break;
+        default:
+            m3rt::M3_ERR(
+                    "Unknown state command %d...\n",
+                    state_cmd);
+            break;
+        }
+    }
+    
+    bool changeStateCallback(m3ros_control::ControlStateCommand::Request  &req,
+                     m3ros_control::ControlStateCommand::Response &res)
+    {
+        changeState(req.command);
+        res.retval = master_state_; 
+        return true;
+    }
+    
 };
+
+
 
 class RosControlComponent: public m3rt::M3Component
 {
@@ -606,7 +765,8 @@ protected:
         return status_.mutable_base();
     } //NOTE make abstract M3Component happy
 
-    bool RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
+    bool RosInit(m3::M3Humanoid* bot,
+                 m3::M3JointZLift* lift)
     {
         //std::string ros_node_name = GetName();
         std::string ros_node_name = "meka_roscontrol";
@@ -631,6 +791,9 @@ protected:
             // Create the controller manager
             cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                     *ros_nh_ptr_);
+                    
+             ros::ServiceServer service =  ros_nh_ptr_->advertiseService("change_state", 
+                &MekaRobotHW::changeStateCallback, hw_ptr_); 
         }
         else
         {
@@ -652,9 +815,10 @@ protected:
     }
 
 private:
-    std::string bot_name_, zlift_name_, hw_interface_mode_;
+    std::string bot_name_, zlift_name_, pwr_name_, hw_interface_mode_;
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
+    m3::M3Pwr* pwr_shr_ptr_;
     ros::Duration period_;
     ros::NodeHandle* ros_nh_ptr_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
@@ -665,6 +829,7 @@ private:
         DEFAULT
     };
     bool skip_loop_;
+    bool allow_running_;
     long long loop_cnt_;
 
 };

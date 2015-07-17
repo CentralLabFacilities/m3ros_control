@@ -12,13 +12,19 @@ bool RosControlComponent::LinkDependentComponents()
     bot_shr_ptr_=(m3::M3Humanoid*) factory->GetComponent(bot_name_);
     if (bot_shr_ptr_==NULL) {
         m3rt::M3_INFO("M3Humanoid component %s not found for component %s\n",bot_name_.c_str(),GetName().c_str());
-    	return false;
-	}
+        return false;
+    }
     zlift_shr_ptr_ = (m3::M3JointZLift*) factory->GetComponent(zlift_name_);
     if (zlift_shr_ptr_==NULL) {
-	m3rt::M3_INFO("M3JointZLift component %s not found for component %s\n",zlift_name_.c_str(),GetName().c_str());
-	return false;
-	}
+        m3rt::M3_INFO("M3JointZLift component %s not found for component %s\n",zlift_name_.c_str(),GetName().c_str());
+        return false;
+    }
+    pwr_shr_ptr_ = (m3::M3Pwr*) factory->GetComponent(pwr_name_);
+    if (pwr_shr_ptr_==NULL) {
+        m3rt::M3_INFO("M3Pwr component %s not found for component %s\n",pwr_name_.c_str(),GetName().c_str());
+        return false;
+    }
+    
     return true;
 }
 
@@ -42,6 +48,7 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename)
         return false;
     doc["humanoid"] >> bot_name_;
     doc["zlift"] >> zlift_name_;
+    doc["pwr_component"] >> pwr_name_;
     doc["hw_interface_mode"] >> hw_interface_mode_;
     if(hw_interface_mode_=="effort" ||  hw_interface_mode_=="position")
         M3_INFO("Selected hardware interface mode %s for component %s\n",hw_interface_mode_.c_str(),GetName().c_str());
@@ -60,6 +67,8 @@ void RosControlComponent::StepStatus()
     {
         //SAVE_TIME(start_dt_status_);
         hw_ptr_->read();
+        if(!pwr_shr_ptr_->IsMotorPowerOn())
+            hw_ptr_->changeState(STATE_CMD_ESTOP);
         cm_ptr_->update(ros::Time::now(),period_);
         //SAVE_TIME(end_dt_status_);
         //PRINT_TIME(start_dt_status_,end_dt_status_,tmp_dt_status_,"status");
