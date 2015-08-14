@@ -31,15 +31,6 @@ bool RosControlComponent::LinkDependentComponents()
 void RosControlComponent::Startup()
 {
     period_.fromSec(1.0/static_cast<double>(RT_TASK_FREQUENCY));
-      
-   // state_mutex_ = rt_typed_sem_init(nam2num("ROSCTR"), 1, BIN_SEM);
-    
-    /*if (!state_mutex_)
-    {
-      M3_ERR("rt Unable to create the state_mutex semaphore.\n",0);
-      skip_loop_ = true;
-      return;
-    }*/
     
     if(!RosInit(bot_shr_ptr_, zlift_shr_ptr_)) //NOTE here the bot_shr_ptr_ is correctly loaded
         skip_loop_ = true;
@@ -49,10 +40,6 @@ void RosControlComponent::Startup()
 
 void RosControlComponent::Shutdown()
 {
-  /*if (state_mutex_ != NULL)
-  {
-    rt_sem_delete(state_mutex_);
-  }*/
     //RosShutdown();
 }
 
@@ -107,7 +94,14 @@ void RosControlComponent::StepCommand()
         //SAVE_TIME(start_dt_cmd_);
         rt_sem_wait(state_mutex_); 
         hw_ptr_->write();
+        if(loop_cnt_%100 == 0){
+            if (realtime_pub_ptr_->trylock()){
+                realtime_pub_ptr_->msg_.val = hw_ptr_->getCtrlState();
+                realtime_pub_ptr_->unlockAndPublish();
+            }
+        }
         rt_sem_signal(state_mutex_); 
+       
         //SAVE_TIME(end_dt_cmd_);
         //PRINT_TIME(start_dt_cmd_,end_dt_cmd_,tmp_dt_cmd_,"cmd");
     }
@@ -128,27 +122,35 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
     ros::init(argc, argv, ros_node_name,
             ros::init_options::NoSigintHandler);
     free(arg0);
-
+    
     m3rt::M3_INFO("Checking for running roscore... %s\n",
             GetName().c_str());
     if (ros::master::check())
     {
+        // first node handler for the controller manager and controllers
         ros_nh_ptr_ = new ros::NodeHandle(ros_node_name);
-        ros_nh_ptr2_ = new ros::NodeHandle(ros_node_name+"2");
+        // second node handler for the state manager with a separate cb queue
+        ros_nh_ptr2_ = new ros::NodeHandle(ros_node_name+"_state_manager");
         cb_queue_ptr = new ros::CallbackQueue();
         ros_nh_ptr2_->setCallbackQueue(cb_queue_ptr);
+        
+        // Create a realtime publisher for the state
+        realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3ros_control::M3RosControlState>(*ros_nh_ptr2_, "state", 4);
+        
+        // Create a rt thread for state manager service handler
         spinner_running_ = true;
         rc=-1;
         rc = rt_thread_create((void*)ros_async_spinner, (void*)this, 1000000);
         //m3rt::M3_INFO("rc: %d\n",(int)rc);
+        // Create a std async spinner for the controller mananager services and callbacks
         spinner_ptr_ = new ros::AsyncSpinner(1); // Use one thread for the external communications
-        
         spinner_ptr_->start();
         // Create the Meka Hardware interface
         hw_ptr_ = new MekaRobotHW(bot, lift, hw_interface_mode_);
         // Create the controller manager
         cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                 *ros_nh_ptr_);
+        // Advertize the change state service in the dedicated nodehandler/spinner
         srv_ =  ros_nh_ptr2_->advertiseService("change_state", 
             &RosControlComponent::changeStateCallback,this); 
     }
@@ -166,7 +168,7 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
 // asynchronous spinner for ROS implemented as an rt_task to access rt mutex
 // has priority one lower than the current task
 // the service used in the component accesses a mutex of the higher priority task
-// their might be priority inversions to take care of.
+// there might be priority inversions to take care of.
 void *ros_async_spinner(void * arg)
 {
     RosControlComponent * ros_comp_ptr = (RosControlComponent *)arg;
@@ -186,14 +188,17 @@ void *ros_async_spinner(void * arg)
     mlockall(MCL_CURRENT | MCL_FUTURE);
     rt_make_soft_real_time();
 
+    // create a mutex for the state resource
     ros_comp_ptr->state_mutex_ = rt_typed_sem_init(nam2num("MUTEX"), 1, BIN_SEM);
 
     while (ros_comp_ptr->spinner_running_)
-    {     
+    {
+        // call all the cb from the callback queue
         ros_comp_ptr->cb_queue_ptr->callAvailable(ros::WallDuration());
         rt_sleep(nano2count(500000000));
     }    
 
+    // destroy the mutex
     if (ros_comp_ptr->state_mutex_ != NULL)
     {
         rt_sem_delete(ros_comp_ptr->state_mutex_);

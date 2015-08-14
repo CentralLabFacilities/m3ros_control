@@ -29,11 +29,16 @@ extern "C"
 ////////// ROS/ROS_CONTROL
 #include <ros/ros.h>
 #include <ros/callback_queue.h>
+#include <realtime_tools/realtime_publisher.h>
 #include <controller_manager/controller_manager.h>
 #include <hardware_interface/robot_hw.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
-#include <m3ros_control/ControlStateCommand.h>
+#include <m3ros_control/M3RosControlChangeState.h>
+#include <m3ros_control/M3RosControlState.h>
+#include <m3ros_control/M3RosControlStateErrorCodes.h>
+
+
 //#include <hardware_interface/joint_mode_interface.h>
 
 ////////// Some defs
@@ -606,6 +611,8 @@ private:
 
     }
     
+    // store a freeze state (cur pos/ zero vel/ cur trq , depends on mode) 
+    // and override the current commanded pos/vel/trq with the stored one
     void freezeJoints()
     {
         switch (joint_mode_)
@@ -654,14 +661,16 @@ private:
     }  
     
 public: 
+    // access the current control state
     int getCtrlState()
     {
         return ctrl_state_;
     }
 
     // try change the state to requested state_cmd
-    void changeState(const int state_cmd)
+    int changeState(const int state_cmd)
     {
+        int ret=0;
         switch (state_cmd)
         {
         case STATE_CMD_ESTOP:
@@ -706,10 +715,10 @@ public:
                 }
                 else
                 {
-                    
                     m3rt::M3_ERR(
                         "Controller did not converge to freeze position, \
                          cannot switch to running...\n");
+                    ret = -2;
                 }
             }
 
@@ -718,12 +727,14 @@ public:
             m3rt::M3_ERR(
                     "Unknown state command %d...\n",
                     state_cmd);
+            ret = -1;
             break;
         }
+        return ret;
     }
 
-    // measure difference between command and current pos to tell
-    // if controller have converged
+    /* measure difference between command and current pos
+     to tell if controllers have converged */
     bool checkCtrlConvergence()
     {
         bool converged = true;
@@ -755,7 +766,6 @@ public:
                         m3rt::M3_DEBUG("joint %d, shows a position difference %f > %f \n", i, joint_err_[i], ACCEPTABLE_POS_MIRROR);
                     break;
                 }
-                    
             }
             break;
         case EFFORT:
@@ -859,7 +869,6 @@ protected:
             delete cb_queue_ptr;
         if (ros_nh_ptr_ != NULL)
             ros_nh_ptr_->shutdown();
-            
     }
 
 private:
@@ -873,7 +882,7 @@ private:
     ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_;
     ros::ServiceServer srv_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
-    
+    realtime_tools::RealtimePublisher<m3ros_control::M3RosControlState> *realtime_pub_ptr_;
     
     MekaRobotHW* hw_ptr_;
     controller_manager::ControllerManager* cm_ptr_;
@@ -885,19 +894,24 @@ private:
     long long loop_cnt_;
     
     // calback function for the service
-    bool changeStateCallback(m3ros_control::ControlStateCommand::Request  &req,
-                     m3ros_control::ControlStateCommand::Response &res)
+    bool changeStateCallback(m3ros_control::M3RosControlChangeState::Request  &req,
+                     m3ros_control::M3RosControlChangeState::Response &res)
     {
         // during change, no other function must use the ctrl_state.
-
-        rt_sem_wait(this->state_mutex_); 
-        hw_ptr_->changeState(req.command);
-        rt_sem_signal(this->state_mutex_); 
-        res.retval = hw_ptr_->getCtrlState(); 
+        rt_sem_wait(this->state_mutex_);
+        int ret = hw_ptr_->changeState(req.command.val);
+        rt_sem_signal(this->state_mutex_);
+        if (ret < 0)
+        {
+            if (ret == -2)
+                res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::CONTROLLER_NOT_CONVERGED; //hw_ptr_->getCtrlState();
+            else
+                res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::FAILURE; 
+        }
+        else
+            res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::SUCCESS; 
         return true;
     }
-    
-
 };
 
 

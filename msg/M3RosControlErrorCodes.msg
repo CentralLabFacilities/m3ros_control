@@ -1,0 +1,11 @@
+int32 val
+
+# overall behavior
+int32 SUCCESS=1
+int32 FAILURE=99999
+
+int32 UNKNOW_STATE=-1
+int32 CONTROLLER_NOT_CONVERGED=-2
+
+
+

@@ -16,11 +16,15 @@ find_package(catkin REQUIRED COMPONENTS
   controller_interface 
   control_toolbox
   message_generation
-  #realtime_tools
+  realtime_tools
+)
+
+add_message_files( DIRECTORY ${PROJECT_ROOT}/msg
+  FILES M3RosControlState.msg M3RosControlStateErrorCodes.msg
 )
 
 add_service_files( DIRECTORY ${PROJECT_ROOT}/srv
-  FILES ControlStateCommand.srv
+  FILES M3RosControlChangeState.srv
 )
 
 
