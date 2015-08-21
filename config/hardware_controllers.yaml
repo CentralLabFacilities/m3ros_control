@@ -24,14 +24,50 @@ meka_roscontrol:
     joints:
       - torso_j0
       - torso_j1
+      
+  torso_position_trajectory_controller:
+    type: "position_controllers/JointTrajectoryController"
+    joints:
+      - torso_j0
+      - torso_j1
+
+    constraints:
+      goal_time: 0.5                   # Defaults to zero
+      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
+      torso_j0:
+        goal: 0.1       
+      torso_j1:
+        goal: 0.1       
+      
+    state_publish_rate:  50 # Defaults to 50
+    action_monitor_rate: 20 # Defaults to 20
+    #hold_trajectory_duration: 0 # Defaults to 0.5
 
   head_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:
       - head_j0
       - head_j1
+      
+  head_position_trajectory_controller:
+    type: "position_controllers/JointTrajectoryController"
+    joints:
+      - head_j0
+      - head_j1
 
-  right_position_controller:
+    constraints:
+      goal_time: 0.5                   # Defaults to zero
+      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
+      head_j0:
+        goal: 0.1       
+      head_j1:
+        goal: 0.1       
+      
+    state_publish_rate:  50 # Defaults to 50
+    action_monitor_rate: 20 # Defaults to 20
+    #hold_trajectory_duration: 0 # Defaults to 0.5
+
+  right_arm_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:
       - right_arm_j0
@@ -42,7 +78,7 @@ meka_roscontrol:
       - right_arm_j5
       - right_arm_j6
 
-  left_position_controller:
+  left_arm_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:
       - left_arm_j0
@@ -61,6 +97,33 @@ meka_roscontrol:
       - right_hand_j2
       - right_hand_j3
       - right_hand_j4
+      
+  right_hand_position_trajectory_controller:
+    type: "position_controllers/JointTrajectoryController"
+    joints:
+      - right_hand_j0
+      - right_hand_j1
+      - right_hand_j2
+      - right_hand_j3
+      - right_hand_j4
+
+    constraints:
+      goal_time: 0.5                   # Defaults to zero
+      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
+      right_hand_j0:
+        goal: 0.1       
+      right_hand_j1:
+        goal: 0.1           
+      right_hand_j2:
+        goal: 0.1       
+      right_hand_j3:
+        goal: 0.1       
+      right_hand_j4:
+        goal: 0.1       
+
+    state_publish_rate:  50 # Defaults to 50
+    action_monitor_rate: 20 # Defaults to 20
+    #hold_trajectory_duration: 0 # Defaults to 0.5
 
   left_hand_position_controller:
     type: "position_controllers/JointGroupPositionController"
@@ -71,8 +134,35 @@ meka_roscontrol:
       - left_hand_j3
       - left_hand_j4
 
+  left_hand_position_trajectory_controller:
+    type: "position_controllers/JointTrajectoryController"
+    joints:
+      - left_hand_j0
+      - left_hand_j1
+      - left_hand_j2
+      - left_hand_j3
+      - left_hand_j4
+
+    constraints:
+      goal_time: 0.5                   # Defaults to zero
+      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
+      left_hand_j0:
+        goal: 0.1       
+      left_hand_j1:
+        goal: 0.1           
+      left_hand_j2:
+        goal: 0.1       
+      left_hand_j3:
+        goal: 0.1       
+      left_hand_j4:
+        goal: 0.1       
+
+    state_publish_rate:  50 # Defaults to 50
+    action_monitor_rate: 20 # Defaults to 20
+    #hold_trajectory_duration: 0 # Defaults to 0.5
+
   # Position - Right and Left Joint Position Trajectory Controllers -------------------
-  left_position_trajectory_controller:
+  left_arm_position_trajectory_controller:
     type: "position_controllers/JointTrajectoryController"
     joints:
       - left_arm_j0
@@ -84,35 +174,28 @@ meka_roscontrol:
       - left_arm_j6
 
     constraints:
-      goal_time: 0.0                   # Defaults to zero
-      stopped_velocity_tolerance: 0.01 # Defaults to 0.01
+      goal_time: 0.5                   # Defaults to zero
+      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
       left_arm_j0:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j1:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j2:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j3:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j4:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j5:
-        trajectory: 0 
         goal: 0.1       
       left_arm_j6:
-        trajectory: 0 
         goal: 0.1       
 
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
     #hold_trajectory_duration: 0 # Defaults to 0.5
 
-  right_position_trajectory_controller:
+  right_arm_position_trajectory_controller:
     type: "position_controllers/JointTrajectoryController"
     joints:
       - right_arm_j0
@@ -124,28 +207,21 @@ meka_roscontrol:
       - right_arm_j6
 
     constraints:
-      goal_time: 0.0                   
-      stopped_velocity_tolerance: 0.01 
+      goal_time: 0.5
+      stopped_velocity_tolerance: 0.05
       right_arm_j0:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j1:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j2:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j3:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j4:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j5:
-        trajectory: 0 
         goal: 0.1       
       right_arm_j6:
-        trajectory: 0 
         goal: 0.1       
 
     state_publish_rate:  50 # Defaults to 50
@@ -153,7 +229,7 @@ meka_roscontrol:
     #hold_trajectory_duration: 0 # Defaults to 0.5
 
   # Velocity - Right and Left Joint Velocity Trajectory Controllers -------------------
-  left_velocity_trajectory_controller:
+  left_arm_velocity_trajectory_controller:
     type: "velocity_controllers/JointTrajectoryController"
     joints:
       - left_arm_j0
@@ -202,7 +278,7 @@ meka_roscontrol:
     action_monitor_rate: 20 # Defaults to 20
     #hold_trajectory_duration: 0 # Defaults to 0.5
 
-  right_velocity_trajectory_controller:
+  right_arm_velocity_trajectory_controller:
     type: "velocity_controllers/JointTrajectoryController"
     joints:
       - right_arm_j0
