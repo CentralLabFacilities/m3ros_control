@@ -34,9 +34,9 @@ extern "C"
 #include <hardware_interface/robot_hw.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
-#include <m3ros_control/M3RosControlChangeState.h>
-#include <m3ros_control/M3RosControlState.h>
-#include <m3ros_control/M3RosControlStateErrorCodes.h>
+#include <m3meka_msgs/M3ControlStateChange.h>
+#include <m3meka_msgs/M3ControlState.h>
+#include <m3meka_msgs/M3ControlStateErrorCodes.h>
 
 
 //#include <hardware_interface/joint_mode_interface.h>
@@ -882,7 +882,7 @@ private:
     ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_;
     ros::ServiceServer srv_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
-    realtime_tools::RealtimePublisher<m3ros_control::M3RosControlState> *realtime_pub_ptr_;
+    realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates> *realtime_pub_ptr_;
     
     MekaRobotHW* hw_ptr_;
     controller_manager::ControllerManager* cm_ptr_;
@@ -894,22 +894,27 @@ private:
     long long loop_cnt_;
     
     // calback function for the service
-    bool changeStateCallback(m3ros_control::M3RosControlChangeState::Request  &req,
-                     m3ros_control::M3RosControlChangeState::Response &res)
+    bool changeStateCallback(m3meka_msgs::M3ControlStateChange::Request  &req,
+                     m3meka_msgs::M3ControlStateChange::Response &res)
     {
         // during change, no other function must use the ctrl_state.
-        rt_sem_wait(this->state_mutex_);
-        int ret = hw_ptr_->changeState(req.command.val);
-        rt_sem_signal(this->state_mutex_);
-        if (ret < 0)
+        if (req.command.state.size()>0)
         {
-            if (ret == -2)
-                res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::CONTROLLER_NOT_CONVERGED; //hw_ptr_->getCtrlState();
+            rt_sem_wait(this->state_mutex_);
+            int ret = hw_ptr_->changeState(req.command.state[0]);
+            rt_sem_signal(this->state_mutex_);
+            if (ret < 0)
+            {
+                if (ret == -2)
+                    res.error_code.val = m3meka_msgs::M3ControlStateErrorCodes::CONTROLLER_NOT_CONVERGED; //hw_ptr_->getCtrlState();
+                else
+                    res.error_code.val = m3meka_msgs::M3ControlStateErrorCodes::FAILURE; 
+            }
             else
-                res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::FAILURE; 
+                res.error_code.val = m3meka_msgs::M3ControlStateErrorCodes::SUCCESS; 
         }
         else
-            res.error_code.val = m3ros_control::M3RosControlStateErrorCodes::SUCCESS; 
+            res.error_code.val = m3meka_msgs::M3ControlStateErrorCodes::FAILURE; 
         return true;
     }
 };

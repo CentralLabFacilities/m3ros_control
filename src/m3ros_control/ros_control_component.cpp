@@ -96,7 +96,7 @@ void RosControlComponent::StepCommand()
         hw_ptr_->write();
         if(loop_cnt_%100 == 0){
             if (realtime_pub_ptr_->trylock()){
-                realtime_pub_ptr_->msg_.val = hw_ptr_->getCtrlState();
+                realtime_pub_ptr_->msg_.state[0] = hw_ptr_->getCtrlState();
                 realtime_pub_ptr_->unlockAndPublish();
             }
         }
@@ -135,8 +135,11 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         ros_nh_ptr2_->setCallbackQueue(cb_queue_ptr);
         
         // Create a realtime publisher for the state
-        realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3ros_control::M3RosControlState>(*ros_nh_ptr2_, "state", 4);
-        
+        realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
+        realtime_pub_ptr_->msg_.group_name.push_back("all");
+        realtime_pub_ptr_->msg_.state.resize(1);
+        realtime_pub_ptr_->msg_.state[0] = m3meka_msgs::M3ControlStates::UNKNOWN;
+
         // Create a rt thread for state manager service handler
         spinner_running_ = true;
         rc=-1;
