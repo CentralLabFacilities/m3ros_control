@@ -12,7 +12,7 @@ set(PROJECT_ROOT ${PROJECT_SOURCE_DIR})
 
 ###############################################################################
 # Set where to find the FindXXX.cmake
-set(CMAKE_MODULE_PATH "${PROJECT_ROOT}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${PROJECT_ROOT}/cmake/Modules/" $ENV{M3_CMAKE_MODULES} ${CMAKE_MODULE_PATH})
 
 ###############################################################################
 # Set all bunch of usefull variables
