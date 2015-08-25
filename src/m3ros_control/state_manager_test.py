@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# author Guillaume WALCK (2015)
+
 import rospy
 
 from m3meka_msgs.msg import M3ControlStates, M3ControlStateErrorCodes

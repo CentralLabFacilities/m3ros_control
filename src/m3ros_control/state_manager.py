@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# author Guillaume WALCK (2015)
+
 import rospy
 from actionlib import SimpleActionServer
 from m3meka_msgs.msg import M3ControlStates, M3ControlStateErrorCodes
@@ -67,7 +69,7 @@ class MekaStateManager(object):
         if goal_valid:
             # init internal vars
             success = True
-            rate = rospy.Rate(1)
+            rate = rospy.Rate(2)
             # initialize the feedback
             self._feedback.group_already_changed = 0
 
@@ -232,42 +234,58 @@ class MekaStateManager(object):
 
         # loop on the controllers
         if resp:
+            all_controllers = []
             for controller in resp.controller:
                 cname_split = controller.name.split("_")
                 if len(cname_split) > 1:
                     if cname_split[0] in ["torso", "zlift", "head"]:
-                        self._controller_list[cname_split[0]] = controller.name
+                        if cname_split[0] not in self._controller_list:
+                            self._controller_list[cname_split[0]]=[]
+                        self._controller_list[cname_split[0]].append(controller.name)
+                        all_controllers.append(controller.name)
                     else:
                         if len(cname_split) > 2:
                             if cname_split[1] in ["arm", "hand"]:
+                                
                                 group_name = cname_split[0] + "_" +\
                                     cname_split[1]
-                                self._controller_list[group_name] =\
-                                    controller.name
+                                if group_name not in self._controller_list:
+                                    self._controller_list[group_name]=[]
+                                self._controller_list[group_name].append(
+                                    controller.name)
+                                all_controllers.append(controller.name)
+            self._controller_list['all'] = all_controllers
+        print self._controller_list
 
     def reset_controllers(self, group_names):
         """
         reset all the controllers in the given group_names
         """
         if self.stop_controllers(group_names):
+            rospy.sleep(1)
             if self.start_controllers(group_names):
                 return True
         return False
 
-    def start_controllers(self, group_names):
+    def start_controllers(self, group_list):
         """
         start all the controllers in the given group_names
         """
         ret = True
         controllers = []
+        if isinstance(group_list, str):
+            group_names = group_list.split(" ")
+        else:
+            group_names = group_list
         for group in group_names:
             if group in self._controller_list:
-                controllers.append(self._controller_list[group])
+                controllers += self._controller_list[group]
             else:
                 rospy.logerr("No controller found for this group")
 
         req = SwitchControllerRequest()
         req.start_controllers = controllers
+        req.strictness = SwitchControllerRequest.BEST_EFFORT
 
         try:
             resp = self._cm_switch_client(req)
@@ -281,20 +299,25 @@ class MekaStateManager(object):
             ret = False
         return ret
 
-    def stop_controllers(self, group_names):
+    def stop_controllers(self, group_list):
         """
         stop all the controllers in the given group_names
         """
         ret = True
         controllers = []
+        if isinstance(group_list, str):
+            group_names = group_list.split(" ")
+        else:
+            group_names = group_list
         for group in group_names:
             if group in self._controller_list:
-                controllers.append(self._controller_list[group])
+                controllers += self._controller_list[group]
             else:
-                rospy.logerr("No controller found for this group")
+                rospy.logerr("No controller found for group %s", group)
 
         req = SwitchControllerRequest()
         req.stop_controllers = controllers
+        req.strictness = SwitchControllerRequest.BEST_EFFORT
 
         try:
             resp = self._cm_switch_client(req)
@@ -310,5 +333,5 @@ class MekaStateManager(object):
 
 if __name__ == '__main__':
     rospy.init_node('meka_state_manager')
-    MekaStateManager(rospy.get_name(), m3roscontrol_name="")
+    MekaStateManager(rospy.get_name(), m3roscontrol_name="/meka_roscontrol")
     rospy.spin()

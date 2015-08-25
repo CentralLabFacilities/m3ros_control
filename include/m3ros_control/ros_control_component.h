@@ -693,7 +693,6 @@ public:
         case STATE_CMD_STOP:
             if (ctrl_state_ == STATE_RUNNING)
                 allow_running_ = false;
-                //switch controller off
             ctrl_state_ = STATE_STANDBY;
             frozen_ = false;
             break;
@@ -701,13 +700,25 @@ public:
         case STATE_CMD_FREEZE:
             if (ctrl_state_ == STATE_RUNNING)
                 allow_running_ = false;
-
-            ctrl_state_ = STATE_READY;
+            // cannot go to freeze if previously in e-stop 
+            // go to standby first
+            if (ctrl_state_ == STATE_ESTOP)
+                ret = -3;
+            else 
+                ctrl_state_ = STATE_READY;
             break;
 
         case STATE_CMD_START:
             if (ctrl_state_ != STATE_RUNNING)
             {
+                // cannot go to run if previously in e-stop 
+                // go to standby first
+                if (ctrl_state_ == STATE_ESTOP)
+                {
+                    ret = -3;
+                    break;
+                }
+                
                 if (allow_running_)
                 {
                     ctrl_state_ = STATE_RUNNING;
@@ -715,6 +726,9 @@ public:
                 }
                 else
                 {
+                    // set to ready to allow for convergence 
+                    // to be checked and freeze to be triggered
+                    ctrl_state_ = STATE_READY;
                     m3rt::M3_ERR(
                         "Controller did not converge to freeze position, \
                          cannot switch to running...\n");
