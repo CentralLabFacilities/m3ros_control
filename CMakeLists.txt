@@ -36,6 +36,12 @@ include_directories(
     ${PROJECT_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/src # Include this directory for the generated protobufs headers
 )
+
+find_package(catkin QUIET)
+if(catkin_FOUND)
+  catkin_python_setup()
+endif(catkin_FOUND)
+
 ###############################################################################
 # Add the main project src dir that contains all the others
 add_subdirectory(src/m3ros_control)
