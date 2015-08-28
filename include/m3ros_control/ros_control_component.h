@@ -374,13 +374,17 @@ public:
             freezeJoints();
         }
 
-        // in ready state and above, allow writing
-        if(ctrl_state_ >= STATE_READY)
+        // RIGHT_ARM
+        istart_ = 0;
+        iend_ = ndof_right_arm_;
+        for (int i = istart_; i < iend_; i++)
         {
-            // RIGHT_ARM
-            istart_ = 0;
-            iend_ = ndof_right_arm_;
-            for (int i = istart_; i < iend_; i++)
+            if(ctrl_state_ < STATE_READY)
+            {
+                bot_shr_ptr_->SetStiffness(RIGHT_ARM, i - istart_, 0.0);
+                bot_shr_ptr_->SetSlewRateProportional(RIGHT_ARM, i - istart_, 0.0);
+            }
+            else
             {
                 bot_shr_ptr_->SetStiffness(RIGHT_ARM, i - istart_, 1.0);
                 bot_shr_ptr_->SetSlewRateProportional(RIGHT_ARM, i - istart_, 1.0);
@@ -405,10 +409,18 @@ public:
                     break;
                 }
             }
-            // LEFT_ARM
-            istart_ += ndof_right_arm_;
-            iend_ += ndof_left_arm_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // LEFT_ARM
+        istart_ += ndof_right_arm_;
+        iend_ += ndof_left_arm_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            if(ctrl_state_ < STATE_READY)
+            {
+                bot_shr_ptr_->SetStiffness(LEFT_ARM, i - istart_, 0.0);
+                bot_shr_ptr_->SetSlewRateProportional(LEFT_ARM, i - istart_, 0.0);
+            }
+            else
             {
                 bot_shr_ptr_->SetStiffness(LEFT_ARM, i - istart_, 1.0);
                 bot_shr_ptr_->SetSlewRateProportional(LEFT_ARM, i - istart_, 1.0);
@@ -433,13 +445,21 @@ public:
                     break;
                 }
             }
-            // TORSO
-            istart_ += ndof_left_arm_;
-            iend_ += ndof_torso_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // TORSO
+        istart_ += ndof_left_arm_;
+        iend_ += ndof_torso_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            //j1 slave is a copy of j1, do not write j1 slave value to the actuator
+            if (i - istart_ < 2)
             {
-                //j1 slave is a copy of j1, do not write j1 slave value to the actuator
-                if (i - istart_ < 2)
+                if(ctrl_state_ < STATE_READY)
+                {
+                    bot_shr_ptr_->SetStiffness(TORSO, i - istart_, 0.0);
+                    bot_shr_ptr_->SetSlewRateProportional(TORSO, i - istart_, 0.0);
+                }
+                else
                 {
                     bot_shr_ptr_->SetStiffness(TORSO, i - istart_, 1.0);
                     bot_shr_ptr_->SetSlewRateProportional(TORSO, i - istart_, 1.0);
@@ -455,17 +475,25 @@ public:
                     }
                 }
             }
-            // HEAD
-            istart_ += ndof_torso_;
-            iend_ += ndof_head_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // HEAD
+        istart_ += ndof_torso_;
+        iend_ += ndof_head_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            if(ctrl_state_ < STATE_READY)
+            {
+                bot_shr_ptr_->SetStiffness(HEAD, i - istart_, 0.0);
+                bot_shr_ptr_->SetSlewRateProportional(HEAD, i - istart_, 0.0);
+            }
+            else
             {
                 bot_shr_ptr_->SetStiffness(HEAD, i - istart_, 1.0);
                 bot_shr_ptr_->SetSlewRateProportional(HEAD, i - istart_, 1.0);
                 switch (joint_mode_)
                 {
                 case POSITION:
-                    bot_shr_ptr_->SetModeTheta(HEAD, i - istart_);
+                    bot_shr_ptr_->SetModeThetaGc(HEAD, i - istart_);
                     bot_shr_ptr_->SetThetaDeg(HEAD, i - istart_,
                             RAD2DEG(joint_pos_command_[i]));
                     break;
@@ -473,13 +501,20 @@ public:
                     break;
                 }
             }
-            // RIGHT_HAND
-            istart_ += ndof_head_;
-            iend_ += ndof_right_hand_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // RIGHT_HAND
+        istart_ += ndof_head_;
+        iend_ += ndof_right_hand_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            bot_shr_ptr_->SetStiffness(RIGHT_HAND, i - istart_, 0.7);
+            bot_shr_ptr_->SetSlewRateProportional(RIGHT_HAND, i - istart_, 1.0);
+            if(ctrl_state_ < STATE_READY)
             {
-                bot_shr_ptr_->SetStiffness(RIGHT_HAND, i - istart_, 1.0);
-                bot_shr_ptr_->SetSlewRateProportional(RIGHT_HAND, i - istart_, 1.0);
+                bot_shr_ptr_->SetModeOff(RIGHT_HAND, i - istart_);
+            }
+            else
+            {
                 switch (joint_mode_)
                 {
                 case VELOCITY:
@@ -501,13 +536,21 @@ public:
                     break;
                 }
             }
-            // LEFT_HAND
-            istart_ += ndof_right_hand_;
-            iend_ += ndof_left_hand_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // LEFT_HAND
+        istart_ += ndof_right_hand_;
+        iend_ += ndof_left_hand_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            bot_shr_ptr_->SetStiffness(LEFT_HAND, i - istart_, 0.7);
+            bot_shr_ptr_->SetSlewRateProportional(LEFT_HAND, i - istart_, 1.0);
+                
+            if(ctrl_state_ < STATE_READY)
             {
-                bot_shr_ptr_->SetStiffness(LEFT_HAND, i - istart_, 1.0);
-                bot_shr_ptr_->SetSlewRateProportional(LEFT_HAND, i - istart_, 1.0);
+                bot_shr_ptr_->SetModeOff(LEFT_HAND, i - istart_);
+            }
+            else
+            {
                 switch (joint_mode_)
                 {
                 case VELOCITY:
@@ -529,10 +572,18 @@ public:
                     break;
                 }
             }
-            // ZLIFT
-            istart_ += ndof_left_hand_;
-            iend_ += ndof_zlift_;
-            for (int i = istart_; i < iend_; i++)
+        }
+        // ZLIFT
+        istart_ += ndof_left_hand_;
+        iend_ += ndof_zlift_;
+        for (int i = istart_; i < iend_; i++)
+        {
+            if(ctrl_state_ < STATE_READY)
+            {
+                zlift_shr_ptr_->SetDesiredStiffness(0.0);
+                zlift_shr_ptr_->SetSlewRate(0.0);
+            }
+            else
             {
                 zlift_shr_ptr_->SetDesiredStiffness(1.0);
                 zlift_shr_ptr_->SetSlewRate(
