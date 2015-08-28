@@ -51,12 +51,24 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename)
     doc["zlift"] >> zlift_name_;
     doc["pwr_component"] >> pwr_name_;
     doc["hw_interface_mode"] >> hw_interface_mode_;
+    
+    
     if(hw_interface_mode_=="effort" ||  hw_interface_mode_=="position")
         M3_INFO("Selected hardware interface mode %s for component %s\n",hw_interface_mode_.c_str(),GetName().c_str());
     else
     {
         M3_INFO("Wrong hardware interface mode %s for component %s\n",hw_interface_mode_.c_str(),GetName().c_str());
         return false;
+    }
+    
+    if (doc["preload_controllers"])
+    {
+        const YAML::Node& controller_names = doc["preload_controllers"];
+        controller_list_.resize(controller_names.size());
+        for(unsigned i=0;i<controller_names.size();i++) 
+        {
+            controller_names[i] >> controller_list_[i];
+        }
     }
 
     return true;
@@ -103,13 +115,6 @@ void RosControlComponent::StepStatus()
             M3_INFO("Component %s is not running, please check if roscore is started\n",GetName().c_str());
 
         }
-        if(hw_ptr_)
-        {
-            if(hw_ptr_->getCtrlState() > STATE_CMD_ESTOP)
-            {
-                skip_loop_ = false;
-            }
-        }
     }
 }
 
@@ -137,6 +142,13 @@ void RosControlComponent::StepCommand()
     loop_cnt_++;
 }
 
+void RosControlComponent::PreLoadControllers()
+{
+    for(unsigned i=0;i<controller_list_.size();i++) 
+    {
+        cm_ptr_->loadController(controller_list_[i]);
+    }
+}
 
 bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
 {
@@ -181,6 +193,10 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         // Create the controller manager
         cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                 *ros_nh_ptr_);
+                
+        // Initialize controllers that are already listed in the config file
+        PreLoadControllers();
+                
         // Advertize the change state service in the dedicated nodehandler/spinner
         srv_ =  ros_nh_ptr2_->advertiseService("change_state", 
             &RosControlComponent::changeStateCallback,this); 
@@ -193,7 +209,7 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
                 GetName().c_str());
         return false;
     }
-    return false;
+    return true;
 }
 
 // asynchronous spinner for ROS implemented as an rt_task to access rt mutex

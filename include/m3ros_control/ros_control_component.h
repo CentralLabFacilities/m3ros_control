@@ -744,6 +744,7 @@ protected:
 
 private:
     std::string bot_name_, zlift_name_, pwr_name_, hw_interface_mode_;
+    std::vector<std::string> controller_list_;
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
     m3::M3Pwr* pwr_shr_ptr_;
@@ -763,6 +764,9 @@ private:
     };
     bool skip_loop_;
     long long loop_cnt_;
+
+    
+    void PreLoadControllers();
 
     // calback function for the service
     bool changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
