@@ -97,11 +97,20 @@ void RosControlComponent::StepStatus()
         //PRINT_TIME(start_dt_status_,end_dt_status_,tmp_dt_status_,"status");
     }
     else
+    {
         if(loop_cnt_%1000==0){
 
             M3_INFO("Component %s is not running, please check if roscore is started\n",GetName().c_str());
 
         }
+        if(hw_ptr_)
+        {
+            if(hw_ptr_->getCtrlState() > STATE_CMD_ESTOP)
+            {
+                skip_loop_ = false;
+            }
+        }
+    }
 }
 
 void RosControlComponent::StepCommand()
@@ -184,7 +193,7 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
                 GetName().c_str());
         return false;
     }
-    return true;
+    return false;
 }
 
 // asynchronous spinner for ROS implemented as an rt_task to access rt mutex
