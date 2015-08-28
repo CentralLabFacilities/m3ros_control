@@ -1,0 +1,4 @@
+<launch>
+<rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+</launch>
+

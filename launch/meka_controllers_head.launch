@@ -4,7 +4,7 @@
 
 <!-- head controllers -->
 <group ns="meka_roscontrol" >
-  <node pkg="controller_manager" type="spawner" output="screen" name="head_controller" args="--shutdown-timeout=2.0 head_position_trajectory_controller"/>
+  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_head_ctrl" args="start head_position_trajectory_controller"/>
 </group>
 
 

@@ -1,10 +1,11 @@
 <launch>
 
 <rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
-<!-- js controllers -->
+
+<!-- js controllers-->
 <group ns="meka_roscontrol" >
-  <node pkg="controller_manager" type="spawner" output="screen" name="meka_js" args="joint_state_controller"/>
-</group>
+  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_js" args="start joint_state_controller"/>
+</group> 
 
 </launch>
 

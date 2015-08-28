@@ -40,7 +40,7 @@ void RosControlComponent::Startup()
 
 void RosControlComponent::Shutdown()
 {
-    //RosShutdown();
+    RosShutdown();
 }
 
 bool RosControlComponent::ReadConfig(const char* cfg_filename)
@@ -63,14 +63,13 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename)
     
     if (doc["preload_controllers"])
     {
-        const YAML::Node& controller_names = doc["preload_controllers"];
-        controller_list_.resize(controller_names.size());
-        for(unsigned i=0;i<controller_names.size();i++) 
+        const YAML::Node& controllers = doc["preload_controllers"];
+        controller_list_.resize(controllers.size());
+        for(unsigned i=0;i<controllers.size();i++) 
         {
-            controller_names[i] >> controller_list_[i];
+            controllers[i] >> controller_list_[i];
         }
     }
-
     return true;
 }
 
@@ -146,7 +145,21 @@ void RosControlComponent::PreLoadControllers()
 {
     for(unsigned i=0;i<controller_list_.size();i++) 
     {
-        cm_ptr_->loadController(controller_list_[i]);
+        if(cm_ptr_->loadController(controller_list_[i]))
+        {
+            M3_INFO("Controller %s pre-loaded\n", controller_list_[i].c_str());
+        }
+    }
+}
+
+void RosControlComponent::UnloadControllers()
+{
+    for(unsigned i=0;i<controller_list_.size();i++) 
+    {
+        if(cm_ptr_->unloadController(controller_list_[i]))
+        {
+            M3_INFO("Controller %s unloaded\n", controller_list_[i].c_str());
+        }
     }
 }
 

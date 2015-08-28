@@ -3,3 +3,12 @@ humanoid: m3humanoid_right_left_arm_torso_head_mr18
 zlift: m3joint_mz7_j0
 pwr_component: m3pwr_pwr038
 hw_interface_mode: position #effort
+preload_controllers:
+  - joint_state_controller
+  - right_arm_position_trajectory_controller
+  - left_arm_position_trajectory_controller
+  - right_hand_position_trajectory_controller
+  - left_hand_position_trajectory_controller
+  - torso_position_trajectory_controller
+  - head_position_trajectory_controller
+  - zlift_position_controller

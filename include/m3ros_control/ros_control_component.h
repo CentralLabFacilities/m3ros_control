@@ -736,7 +736,10 @@ protected:
         }
         //if (srv_ptr_ != NULL)
         //    srv_ptr_->shutdown();
-        if (cb_queue_ptr != NULL)
+
+        UnloadControllers();
+        
+        if (cb_queue_ptr !=NULL)
             delete cb_queue_ptr;
         if (ros_nh_ptr_ != NULL)
             ros_nh_ptr_->shutdown();
@@ -767,7 +770,8 @@ private:
 
     
     void PreLoadControllers();
-
+    void UnloadControllers();
+    
     // calback function for the service
     bool changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
             m3meka_msgs::M3ControlStateChange::Response &res)
