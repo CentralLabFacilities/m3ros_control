@@ -104,7 +104,7 @@ class MekaRobotHW: public hardware_interface::RobotHW
 {
 public:
 
-    typedef std::map<std::string, std::pair<M3Chain, int> > map_t;
+    typedef std::map<std::string, chain_> map_t;
     typedef map_t::iterator map_it_t;
 
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
@@ -129,28 +129,13 @@ public:
             joint_mode_ = POSITION;
 
         // Create a map with the ndofs
-        //chains_map_["right_arm"] = std::make_pair(RIGHT_ARM,bot_shr_ptr->GetNdof(RIGHT_ARM));
-        //chains_map_["left_arm"] = std::make_pair(LEFT_ARM,bot_shr_ptr->GetNdof(LEFT_ARM));
-
-        // Set the number of dof
-        ndof_right_arm_ = bot_shr_ptr_->GetNdof(RIGHT_ARM);
-        ndof_left_arm_ = bot_shr_ptr_->GetNdof(LEFT_ARM);
-        ndof_head_ = bot_shr_ptr_->GetNdof(HEAD);
-        ndof_torso_ = bot_shr_ptr_->GetNdof(TORSO);
-        ndof_right_hand_ = bot_shr_ptr_->GetNdof(RIGHT_HAND);
-        ndof_left_hand_ = bot_shr_ptr_->GetNdof(LEFT_HAND);
-        ndof_zlift_ = 1;
-
-        ndof_ = ndof_right_arm_ + ndof_left_arm_ + ndof_head_ + ndof_right_hand_
-                + ndof_left_hand_ + ndof_torso_ + ndof_zlift_;
-
-        joint_name_.resize(ndof_);
-        joint_pos_.resize(ndof_);
-        joint_pos_command_.resize(ndof_);
-        joint_vel_.resize(ndof_);
-        joint_vel_command_.resize(ndof_);
-        joint_effort_.resize(ndof_);
-        joint_effort_command_.resize(ndof_);
+        chain_map_["right_arm"] = Chain_(RIGHT_ARM,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["left_arm"] = Chain_(LEFT_ARM,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["head"] = Chain_(HEAD,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["torso"] = Chain_(TORSO,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["right_hand"] = Chain_(RIGHT_HAND,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["left_hand"] = Chain_(LEFT_HAND,bot_shr_ptr->GetNdof(RIGHT_ARM));
+        chain_map_["zlift"] = Chain_("zlift", 1);
         joint_err_.resize(ndof_);
         frozen_joint_command_.resize(ndof_);
 
@@ -163,93 +148,6 @@ public:
          joint_effort_.fill(0.0);
          joint_effort_command_.fill(0.0);*/
 
-        // Populate hardware interfaces
-        // RIGHT_ARM
-        istart_ = 0;
-        iend_ = ndof_right_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "right_arm_j" + std::to_string(i);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-        // LEFT_ARM
-        istart_ += ndof_right_arm_;
-        iend_ += ndof_left_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "left_arm_j" + std::to_string(i - istart_);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-        // TORSO
-        istart_ += ndof_left_arm_;
-        iend_ += ndof_torso_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "torso_j" + std::to_string(i - istart_);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-
-        // HEAD
-        istart_ += ndof_torso_;
-        iend_ += ndof_head_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "head_j" + std::to_string(i - istart_);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-        // RIGHT HAND
-        istart_ += ndof_head_;
-        iend_ += ndof_right_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "right_hand_j" + std::to_string(i - istart_);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-        // LEFT HAND
-        istart_ += ndof_right_hand_;
-        iend_ += ndof_left_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "left_hand_j" + std::to_string(i - istart_);
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-        // ZLIFT
-        istart_ += ndof_left_hand_;
-        iend_ += ndof_zlift_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_name_[i] = "zlift_j" + std::to_string(i - istart_);
-            // set position command to 300.0 //current position
-            // GetPos is not yet updated here joint_pos_command_[i] = zlift_shr_ptr_->GetPos();
-            joint_pos_command_[i] = 300.0;
-            registerHandles(joint_name_[i], &joint_pos_[i], &joint_vel_[i],
-                    &joint_effort_[i], &joint_pos_command_[i],
-                    &joint_effort_command_[i], &joint_vel_command_[i]);
-        }
         registerInterface(&js_interface_);
         registerInterface(&pj_interface_);
         registerInterface(&ej_interface_);
@@ -258,96 +156,29 @@ public:
     }
 
     void read()
-    {   // RIGHT_ARM
-        istart_ = 0;
-        iend_ = ndof_right_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDeg(RIGHT_ARM, i));
-            joint_vel_[i] = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(RIGHT_ARM, i));
-            joint_effort_[i] = mm2m(bot_shr_ptr_->GetTorque_mNm(RIGHT_ARM, i)); // mNm -> Nm
-        }
-        // LEFT_ARM
-        istart_ += ndof_right_arm_;
-        iend_ += ndof_left_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDeg(LEFT_ARM, i - istart_));
-            joint_vel_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDotDeg(LEFT_ARM, i - istart_));
-            joint_effort_[i] = mm2m(
-                    bot_shr_ptr_->GetTorque_mNm(LEFT_ARM, i - istart_)); // mNm -> Nm
-        }
-        // TORSO
-        istart_ += ndof_left_arm_;
-        iend_ += ndof_torso_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            //j1 slave is a copy of j1
-            if (i - istart_ == 2)
-            {
-                joint_pos_[i] = DEG2RAD(
-                        bot_shr_ptr_->GetThetaDeg(TORSO, i - istart_ - 1));
-                joint_vel_[i] = DEG2RAD(
-                        bot_shr_ptr_->GetThetaDotDeg(TORSO, i - istart_ - 1));
-                joint_effort_[i] = mm2m(
-                        bot_shr_ptr_->GetTorque_mNm(TORSO, i - istart_ - 1)); // mNm -> Nm
+    {
+        for(map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
+            std::vector<joint_value_> *vals = &it->second.values;
+            if(it->first == "zlift") {
+                vals->position = zlift_shr_ptr_->GetPos();
+                vals->velocity = zlift_shr_ptr_->GetPosDot();
+                vals->effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
+                continue;
             }
-            else
-            {
-                joint_pos_[i] = DEG2RAD(
-                        bot_shr_ptr_->GetThetaDeg(TORSO, i - istart_));
-                joint_vel_[i] = DEG2RAD(
-                        bot_shr_ptr_->GetThetaDotDeg(TORSO, i - istart_));
-                joint_effort_[i] = mm2m(
-                        bot_shr_ptr_->GetTorque_mNm(TORSO, i - istart_)); // mNm -> Nm
+            bool t_ = false;
+            if(it->first == "torso")
+                t_ = true;
+            for(int i = 0; i < vals->size(); i++) {
+                if(t_ && i == 2) {
+                    vals->position = DEG2RAD(bot_shr_ptr_->GetThetaDeg(it->second.chain_ref, i - 1));
+                    vals->velocity = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(it->second.chain_ref, i - 1));
+                    vals->effort = mm2m(bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref, i - 1)); // mNm -> Nm
+                } else {
+                    vals->position = DEG2RAD(bot_shr_ptr_->GetThetaDeg(it->second.chain_ref, i));
+                    vals->velocity = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(it->second.chain_ref, i));
+                    vals->effort = mm2m(bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref, i)); // mNm -> Nm
+                }
             }
-        }
-        // HEAD
-        istart_ += ndof_torso_;
-        iend_ += ndof_head_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDeg(HEAD, i - istart_));
-            joint_vel_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDotDeg(HEAD, i - istart_));
-            joint_effort_[i] = mm2m(
-                    bot_shr_ptr_->GetTorque_mNm(HEAD, i - istart_)); // mNm -> Nm
-        }
-        // RIGHT HAND
-        istart_ += ndof_head_;
-        iend_ += ndof_right_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDeg(RIGHT_HAND, i - istart_));
-            joint_vel_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDotDeg(RIGHT_HAND, i - istart_));
-            joint_effort_[i] = mm2m(
-                    bot_shr_ptr_->GetTorque_mNm(RIGHT_HAND, i - istart_)); // mNm -> Nm
-        }
-        // LEFT HAND
-        istart_ += ndof_right_hand_;
-        iend_ += ndof_left_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDeg(LEFT_HAND, i - istart_));
-            joint_vel_[i] = DEG2RAD(
-                    bot_shr_ptr_->GetThetaDotDeg(LEFT_HAND, i - istart_));
-            joint_effort_[i] = mm2m(
-                    bot_shr_ptr_->GetTorque_mNm(LEFT_HAND, i - istart_)); // mNm -> Nm
-        }
-        // ZLIFT
-        istart_ += ndof_left_hand_;
-        iend_ += ndof_zlift_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            joint_pos_[i] = zlift_shr_ptr_->GetPos();
-            joint_vel_[i] = zlift_shr_ptr_->GetPosDot();
-            joint_effort_[i] = mm2m(zlift_shr_ptr_->GetForce());    // mNm -> Nm
         }
     }
 
@@ -374,11 +205,6 @@ public:
             freezeJoints();
         }
 
-        // RIGHT_ARM
-        istart_ = 0;
-        iend_ = ndof_right_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
             if(ctrl_state_ < STATE_READY)
             {
                 bot_shr_ptr_->SetStiffness(RIGHT_ARM, i - istart_, 0.0);
@@ -410,11 +236,6 @@ public:
                 }
             }
         }
-        // LEFT_ARM
-        istart_ += ndof_right_arm_;
-        iend_ += ndof_left_arm_;
-        for (int i = istart_; i < iend_; i++)
-        {
             if(ctrl_state_ < STATE_READY)
             {
                 bot_shr_ptr_->SetStiffness(LEFT_ARM, i - istart_, 0.0);
@@ -446,14 +267,6 @@ public:
                 }
             }
         }
-        // TORSO
-        istart_ += ndof_left_arm_;
-        iend_ += ndof_torso_;
-        for (int i = istart_; i < iend_; i++)
-        {
-            //j1 slave is a copy of j1, do not write j1 slave value to the actuator
-            if (i - istart_ < 2)
-            {
                 if(ctrl_state_ < STATE_READY)
                 {
                     bot_shr_ptr_->SetStiffness(TORSO, i - istart_, 0.0);
@@ -473,14 +286,15 @@ public:
                     default:
                         break;
                     }
+                continue;
                 }
             }
         }
-        // HEAD
-        istart_ += ndof_torso_;
-        iend_ += ndof_head_;
-        for (int i = istart_; i < iend_; i++)
-        {
+            bool h_ = false;
+            if(it->first == "torso")
+                t_ = true;
+            if(it->first == "head")
+                h_ = true;
             if(ctrl_state_ < STATE_READY)
             {
                 bot_shr_ptr_->SetStiffness(HEAD, i - istart_, 0.0);
@@ -502,13 +316,7 @@ public:
                 }
             }
         }
-        // RIGHT_HAND
-        istart_ += ndof_head_;
-        iend_ += ndof_right_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
             bot_shr_ptr_->SetStiffness(RIGHT_HAND, i - istart_, 0.7);
-            bot_shr_ptr_->SetSlewRateProportional(RIGHT_HAND, i - istart_, 1.0);
             if(ctrl_state_ < STATE_READY)
             {
                 bot_shr_ptr_->SetModeOff(RIGHT_HAND, i - istart_);
@@ -535,15 +343,11 @@ public:
                 default:
                     break;
                 }
+                    continue;
             }
         }
-        // LEFT_HAND
-        istart_ += ndof_right_hand_;
-        iend_ += ndof_left_hand_;
-        for (int i = istart_; i < iend_; i++)
-        {
+                bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i , 1.0);
             bot_shr_ptr_->SetStiffness(LEFT_HAND, i - istart_, 0.7);
-            bot_shr_ptr_->SetSlewRateProportional(LEFT_HAND, i - istart_, 1.0);
                 
             if(ctrl_state_ < STATE_READY)
             {
@@ -573,11 +377,6 @@ public:
                 }
             }
         }
-        // ZLIFT
-        istart_ += ndof_left_hand_;
-        iend_ += ndof_zlift_;
-        for (int i = istart_; i < iend_; i++)
-        {
             if(ctrl_state_ < STATE_READY)
             {
                 zlift_shr_ptr_->SetDesiredStiffness(0.0);
@@ -597,7 +396,6 @@ public:
                     break;
                 case POSITION:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-
                     zlift_shr_ptr_->SetDesiredPos(joint_pos_command_[i]);
                     break;
                 case EFFORT:
@@ -611,11 +409,7 @@ public:
     }
 
     
-
 private:
-
-    int istart_, iend_, ndof_right_arm_, ndof_left_arm_, ndof_head_,
-            ndof_right_hand_, ndof_left_hand_, ndof_torso_, ndof_zlift_, ndof_;
 
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
@@ -645,21 +439,58 @@ private:
     std::vector<double> frozen_joint_command_;
     std::vector<std::string> joint_name_;
     
-    void registerHandles(std::string name, double* pos, double* vel,
-            double* eff, double* poscmd, double* effcmd, double* velcmd)
-    {
-        js_interface_.registerHandle(
-                hardware_interface::JointStateHandle(name, pos, vel, eff));
-        pj_interface_.registerHandle(
-                hardware_interface::JointHandle(js_interface_.getHandle(name),
-                        poscmd));
-        ej_interface_.registerHandle(
-                hardware_interface::JointHandle(js_interface_.getHandle(name),
-                        effcmd));
-        vj_interface_.registerHandle(
-                hardware_interface::JointHandle(js_interface_.getHandle(name),
-                        velcmd));
+      {
+          case RIGHT_ARM: return "right_arm";
+          case LEFT_ARM: return "left_arm";
+          case TORSO: return "torso";
+          case HEAD: return "head";
+          case RIGHT_HAND: return "right_hand";
+          case LEFT_HAND: return "left_hand";
+          default: throw Exception("Bad M3Chain Enum!");
+      }
+    }
 
+    struct joint_value_ {
+        std::string name;
+        double position;
+        double velocity;
+        double effort;
+        double pos_cmd;
+        double eff_cmd;
+        double vel_cmd;
+    }
+
+    struct Chain_ {
+        Chain_(std::string name_, int ndof_, bool active_ = true): name(name_), ndof(ndof_), active(active_) {
+            values.resize(ndof);
+            if(name == "zlift")
+                values.position = 300.0;
+            for (int i = 0; i < ndof; i++) {
+               values[i].name =  name + "_j" + std::to_string(i);
+               js_interface_.registerHandle(
+                       hardware_interface::JointStateHandle(values[i].name, &values[i].position, &values[i].velocity, &values[i].effort));
+               pj_interface_.registerHandle(
+                       hardware_interface::JointHandle(js_interface_.getHandle(values[i].name),
+                               &values[i].pos_cmd));
+               ej_interface_.registerHandle(
+                       hardware_interface::JointHandle(js_interface_.getHandle(values[i].name),
+                               &values[i].eff_cmd));
+               vj_interface_.registerHandle(
+                       hardware_interface::JointHandle(js_interface_.getHandle(values[i].name),
+                               &values[i].vel_cmd));
+               //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
+
+            }
+        }
+        Chain_(M3Chain chain_ref_, int ndof_, bool active_ = true): chain_ref(chain_ref_) {
+            Chain_(getStringFromEnum(chain_ref), ndof, active_);
+        };
+
+        M3Chain chain_ref;
+        std::string name;
+        int ndof;
+        bool active;
+        std::vector<joint_value_> values;
     }
     
     // store a freeze state (cur pos/ zero vel/ cur trq , depends on mode) 
