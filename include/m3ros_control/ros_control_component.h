@@ -103,9 +103,6 @@ class MekaRobotHW: public hardware_interface::RobotHW
 {
 public:
 
-    typedef std::map<std::string, chain_> map_t;
-    typedef map_t::iterator map_it_t;
-
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode) :
             bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL), ctrl_state_(STATE_ESTOP), frozen_(
@@ -138,6 +135,20 @@ public:
         chain_map_["left_hand"] = Chain_(LEFT_HAND,
                 bot_shr_ptr->GetNdof(RIGHT_ARM));
         chain_map_["zlift"] = Chain_("zlift", 1);
+        
+        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+        {
+            std::vector<joint_value_> *vals = &it->second.values;
+            for (size_t i = 0; i < vals->size(); i++) 
+            {
+                registerHandles(vals->at(i).name,
+                                &vals->at(i).position, &vals->at(i).velocity,
+                                &vals->at(i).effort, &vals->at(i).pos_cmd, 
+                                &vals->at(i).vel_cmd, &vals->at(i).eff_cmd);
+    
+            }
+        }
+
 
         registerInterface(&js_interface_);
         registerInterface(&pj_interface_);
@@ -154,36 +165,36 @@ public:
             std::vector<joint_value_> *vals = &it->second.values;
             if (it->first == "zlift")
             {
-                vals->position = zlift_shr_ptr_->GetPos();
-                vals->velocity = zlift_shr_ptr_->GetPosDot();
-                vals->effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
+                (*vals)[0].position = zlift_shr_ptr_->GetPos();
+                (*vals)[0].velocity = zlift_shr_ptr_->GetPosDot();
+                (*vals)[0].effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
                 continue;
             }
             bool t_ = false;
             if (it->first == "torso")
                 t_ = true;
-            for (int i = 0; i < vals->size(); i++)
+            for (size_t i = 0; i < vals->size(); i++)
             {
                 if (t_ && i == 2)
                 {
-                    vals->position = DEG2RAD(
+                    vals->at(i).position = DEG2RAD(
                             bot_shr_ptr_->GetThetaDeg(it->second.chain_ref,
                                     i - 1));
-                    vals->velocity = DEG2RAD(
+                    vals->at(i).velocity = DEG2RAD(
                             bot_shr_ptr_->GetThetaDotDeg(it->second.chain_ref,
                                     i - 1));
-                    vals->effort = mm2m(
+                    vals->at(i).effort = mm2m(
                             bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref,
                                     i - 1)); // mNm -> Nm
                 }
                 else
                 {
-                    vals->position = DEG2RAD(
+                    vals->at(i).position = DEG2RAD(
                             bot_shr_ptr_->GetThetaDeg(it->second.chain_ref, i));
-                    vals->velocity = DEG2RAD(
+                    vals->at(i).velocity = DEG2RAD(
                             bot_shr_ptr_->GetThetaDotDeg(it->second.chain_ref,
                                     i));
-                    vals->effort = mm2m(
+                    vals->at(i).effort = mm2m(
                             bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref,
                                     i)); // mNm -> Nm
                 }
@@ -239,11 +250,11 @@ public:
                 case VELOCITY:
                     zlift_shr_ptr_->SetDesiredControlMode(
                             JOINT_MODE_THETADOT_GC);
-                    zlift_shr_ptr_->SetDesiredPosDot(vals->vel_cmd);
+                    zlift_shr_ptr_->SetDesiredPosDot((*vals)[0].vel_cmd);
                     break;
                 case POSITION:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-                    zlift_shr_ptr_->SetDesiredPos(vals->pos_cmd);
+                    zlift_shr_ptr_->SetDesiredPos((*vals)[0].pos_cmd);
                     break;
                 case EFFORT: //not yet implemented
                     break;
@@ -264,7 +275,7 @@ public:
             if (it->first == "right_hand" || it->first == "left_hand")
                 ha_ = true;
 
-            for (int i = 0; i < vals->size(); i++)
+            for (size_t i = 0; i < vals->size(); i++)
             {
                 if (t_ || h_)
                 {
@@ -280,7 +291,7 @@ public:
                     case POSITION:
                         bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
                         bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
-                                RAD2DEG(vals->pos_cmd));
+                                RAD2DEG(vals->at(i).pos_cmd));
                         break;
                     case EFFORT: //not yet implemented
                         break;
@@ -299,17 +310,17 @@ public:
                 case VELOCITY:
                     bot_shr_ptr_->SetModeThetaDotGc(it->second.chain_ref, i);
                     bot_shr_ptr_->SetThetaDotDeg(it->second.chain_ref, i,
-                            RAD2DEG(vals->vel_cmd));
+                            RAD2DEG(vals->at(i).vel_cmd));
                     break;
                 case POSITION:
                     bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
                     bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
-                            RAD2DEG(vals->pos_cmd));
+                            RAD2DEG(vals->at(i).pos_cmd));
                     break;
                 case EFFORT:
                     bot_shr_ptr_->SetModeTorqueGc(it->second.chain_ref, i);
                     bot_shr_ptr_->SetTorque_mNm(it->second.chain_ref, i,
-                            m2mm(vals->eff_cmd));
+                            m2mm(vals->at(i).eff_cmd));
                     break;
                 default:
                     break;
@@ -355,263 +366,271 @@ private:
 
     }
 
-    std::string getStringFromEnum(M3Chain e)
+    struct joint_value_
     {
-    switch e
-    {
-        case RIGHT_ARM: return "right_arm";
-        case LEFT_ARM: return "left_arm";
-        case TORSO: return "torso";
-        case HEAD: return "head";
-        case RIGHT_HAND: return "right_hand";
-        case LEFT_HAND: return "left_hand";
-        default: throw Exception("Bad M3Chain Enum!");
-    }
-}
+        std::string name;
+        double position;
+        double velocity;
+        double effort;
+        double pos_cmd;
+        double eff_cmd;
+        double vel_cmd;
+        double frz_cmd;
+        double err;
+    };
 
-struct joint_value_
-{
-    std::string name;
-    double position;
-    double velocity;
-    double effort;
-    double pos_cmd;
-    double eff_cmd;
-    double vel_cmd;
-    double frz_cmd;
-    double error;
-}
-
-struct Chain_
-{
-    Chain_(std::string name_, int ndof_, bool active_ = true) :
-            name(name_), ndof(ndof_), active(active_)
+    struct Chain_
     {
-        values.resize(ndof);
-        if (name == "zlift")
-            values.position = 300.0;
-        for (int i = 0; i < ndof; i++)
+        Chain_();
+        
+        Chain_(std::string name_, int ndof_, bool active_ = true) :
+                name(name_), ndof(ndof_), active(active_)
         {
-            values[i].name = name + "_j" + std::to_string(i);
-            js_interface_.registerHandle(
-                    hardware_interface::JointStateHandle(values[i].name,
-                            &values[i].position, &values[i].velocity,
-                            &values[i].effort));
-            pj_interface_.registerHandle(
-                    hardware_interface::JointHandle(
-                            js_interface_.getHandle(values[i].name),
-                            &values[i].pos_cmd));
-            ej_interface_.registerHandle(
-                    hardware_interface::JointHandle(
-                            js_interface_.getHandle(values[i].name),
-                            &values[i].eff_cmd));
-            vj_interface_.registerHandle(
-                    hardware_interface::JointHandle(
-                            js_interface_.getHandle(values[i].name),
-                            &values[i].vel_cmd));
-            //jm_interface_.registerHandle(JointModeHandle(joint_name_[i], &joint_mode_[i]));
-
-        }
-    }
-    Chain_(M3Chain chain_ref_, int ndof_, bool active_ = true) :
-            chain_ref(chain_ref_)
-    {
-        Chain_(getStringFromEnum(chain_ref), ndof, active_);
-    }
-    ;
-
-    M3Chain chain_ref;
-    std::string name;
-    int ndof;
-    bool active;
-    std::vector<joint_value_> values;
-}
-
-// store a freeze state (cur pos/ zero vel/ cur trq , depends on mode)
-// and override the current commanded pos/vel/trq with the stored one
-void freezeJoints()
-{
-    switch (joint_mode_)
-    {
-    case VELOCITY:
-        // freeze means zero velocity
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
-        {
-            std::vector<joint_value_> *vals = &it->second.values;
-            if (!frozen_)
-                vals->frz_cmd = 0.0;
-            vals->vel_cmd = vals->frz_cmd;
-        }
-        frozen_ = true;
-        break;
-    case POSITION:
-        // freeze means maintain current position
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
-        {
-            std::vector<joint_value_> *vals = &it->second.values;
-            if (!frozen_)
-                vals->frz_cmd = vals->position;
-            vals->pos_cmd = vals->frz_cmd;
-        }
-        if (!frozen_)
-            m3rt::M3_INFO("Frozen to current position\n");
-        frozen_ = true;
-        break;
-    case EFFORT:
-        // freeze means maintain current effort ?
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
-        {
-            std::vector<joint_value_> *vals = &it->second.values;
-            if (!frozen_)
-                vals->frz_cmd = vals->effort;
-            vals->eff_cmd = vals->frz_cmd;
-        }
-        frozen_ = true;
-        break;
-    default:
-        break;
-    }
-}
-
-/* measure difference between command and current pos
- to tell if controllers have converged */
-bool checkCtrlConvergence()
-{
-    bool converged = true;
-    switch (joint_mode_)
-    {
-    case VELOCITY:
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
-        {
-            std::vector<joint_value_> *vals = &it->second.values;
-            vals->err = std::fabs(vals->vel_cmd);
-            if (vals->err > ACCEPTABLE_VEL_MIRROR)
+            values.resize(ndof);
+            if (name == "zlift")
+                values[0].position = 300.0;
+            for (int i = 0; i < ndof; i++)
             {
-                converged = false;
-                break;
+                values[i].name = name + "_j" + std::to_string(i);
+        
+
             }
         }
-        break;
-    case POSITION:
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+        Chain_(M3Chain chain_ref_, int ndof_, bool active_ = true) :
+                chain_ref(chain_ref_)
         {
-            std::vector<joint_value_> *vals = &it->second.values;
-            vals->err = std::fabs(vals->pos_cmd - vals->position);
-            if (vals->err > ACCEPTABLE_POS_MIRROR)
+            Chain_(getStringFromEnum(chain_ref), ndof, active_);
+        }
+        
+        std::string getStringFromEnum(M3Chain e)
             {
-                converged = false;
-                if (allow_running_)
-                    m3rt::M3_DEBUG(
-                            "joint %d, shows a position difference %f > %f \n",
-                            i, vals->err, ACCEPTABLE_POS_MIRROR);
-                break;
+            switch(e)
+            {
+                case RIGHT_ARM: return "right_arm";
+                case LEFT_ARM: return "left_arm";
+                case TORSO: return "torso";
+                case HEAD: return "head";
+                case RIGHT_HAND: return "right_hand";
+                case LEFT_HAND: return "left_hand";
+                default: throw "Bad M3Chain Enum!";
             }
         }
-        break;
-    case EFFORT:
-        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
-        {
-            std::vector<joint_value_> *vals = &it->second.values;
-            vals->err = std::fabs(vals->eff_cmd - vals->effort);
-            if (vals->err > ACCEPTABLE_EFFORT_MIRROR)
-            {
-                converged = false;
-                break;
-            }
-        }
-        break;
-    default:
-        converged = false;
-        break;
-    }
-    allow_running_ = converged;
-    return converged;
-}
 
-public:
-// access the current control state
-int getCtrlState()
-{
-    return ctrl_state_;
-}
+        M3Chain chain_ref;
+        std::string name;
+        int ndof;
+        bool active;
+        std::vector<joint_value_> values;
+    };
 
-// try change the state to requested state_cmd
-int changeState(const int state_cmd)
-{
-    int ret = 0;
-    switch (state_cmd)
+    typedef std::map<std::string, Chain_> map_t;
+    typedef map_t::iterator map_it_t;
+
+    map_t chain_map_;
+
+    // store a freeze state (cur pos/ zero vel/ cur trq , depends on mode)
+    // and override the current commanded pos/vel/trq with the stored one
+    void freezeJoints()
     {
-    case STATE_CMD_ESTOP:
-
-        if (ctrl_state_ == STATE_RUNNING)
+        switch (joint_mode_)
         {
-            //switch controller off
-            m3rt::M3_INFO("You should switch controllers off !\n");
+        case VELOCITY:
+            // freeze means zero velocity
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    if (!frozen_)
+                        vals->at(i).frz_cmd = 0.0;
+                    vals->at(i).vel_cmd = vals->at(i).frz_cmd;
+                }
+            }
+            frozen_ = true;
+            break;
+        case POSITION:
+            // freeze means maintain current position
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    if (!frozen_)
+                        vals->at(i).frz_cmd = vals->at(i).position;
+                    vals->at(i).pos_cmd = vals->at(i).frz_cmd;
+                }
+            }
+            if (!frozen_)
+                m3rt::M3_INFO("Frozen to current position\n");
+            frozen_ = true;
+            break;
+        case EFFORT:
+            // freeze means maintain current effort ?
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    if (!frozen_)
+                        vals->at(i).frz_cmd = vals->at(i).effort;
+                    vals->at(i).eff_cmd = vals->at(i).frz_cmd;
+                }
+            }
+            frozen_ = true;
+            break;
+        default:
+            break;
         }
-        if (ctrl_state_ != STATE_ESTOP)
+    }
+
+    /* measure difference between command and current pos
+     to tell if controllers have converged */
+    bool checkCtrlConvergence()
+    {
+        bool converged = true;
+        switch (joint_mode_)
         {
-            m3rt::M3_INFO("ESTOP detected\n");
+        case VELOCITY:
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    vals->at(i).err = std::fabs(vals->at(i).vel_cmd);
+                    if (vals->at(i).err > ACCEPTABLE_VEL_MIRROR)
+                    {
+                        converged = false;
+                        break;
+                    }
+                }
+            }
+            break;
+        case POSITION:
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    vals->at(i).err = std::fabs(vals->at(i).pos_cmd - vals->at(i).position);
+                    if (vals->at(i).err > ACCEPTABLE_POS_MIRROR)
+                    {
+                        converged = false;
+                        if (allow_running_)
+                            m3rt::M3_DEBUG(
+                                    "joint %d, shows a position difference %f > %f \n",
+                                    i, vals->at(i).err, ACCEPTABLE_POS_MIRROR);
+                        break;
+                    }
+                }
+            }
+            break;
+        case EFFORT:
+            for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+            {
+                std::vector<joint_value_> *vals = &it->second.values;
+                for (size_t i = 0; i < vals->size(); i++)
+                {
+                    vals->at(i).err = std::fabs(vals->at(i).eff_cmd - vals->at(i).effort);
+                    if (vals->at(i).err > ACCEPTABLE_EFFORT_MIRROR)
+                    {
+                        converged = false;
+                        break;
+                    }
+                }
+            }
+            break;
+        default:
+            converged = false;
+            break;
         }
+        allow_running_ = converged;
+        return converged;
+    }
 
-        ctrl_state_ = STATE_ESTOP;
-        frozen_ = false;
-        allow_running_ = false;
-        break;
+    public:
+    // access the current control state
+    int getCtrlState()
+    {
+        return ctrl_state_;
+    }
 
-    case STATE_CMD_STOP:
-        if (ctrl_state_ == STATE_RUNNING)
+    // try change the state to requested state_cmd
+    int changeState(const int state_cmd)
+    {
+        int ret = 0;
+        switch (state_cmd)
+        {
+        case STATE_CMD_ESTOP:
+
+            if (ctrl_state_ == STATE_RUNNING)
+            {
+                //switch controller off
+                m3rt::M3_INFO("You should switch controllers off !\n");
+            }
+            if (ctrl_state_ != STATE_ESTOP)
+            {
+                m3rt::M3_INFO("ESTOP detected\n");
+            }
+
+            ctrl_state_ = STATE_ESTOP;
+            frozen_ = false;
             allow_running_ = false;
-        ctrl_state_ = STATE_STANDBY;
-        frozen_ = false;
-        break;
+            break;
 
-    case STATE_CMD_FREEZE:
-        if (ctrl_state_ == STATE_RUNNING)
-            allow_running_ = false;
-        // cannot go to freeze if previously in e-stop
-        // go to standby first
-        if (ctrl_state_ == STATE_ESTOP)
-            ret = -3;
-        else
-            ctrl_state_ = STATE_READY;
-        break;
+        case STATE_CMD_STOP:
+            if (ctrl_state_ == STATE_RUNNING)
+                allow_running_ = false;
+            ctrl_state_ = STATE_STANDBY;
+            frozen_ = false;
+            break;
 
-    case STATE_CMD_START:
-        if (ctrl_state_ != STATE_RUNNING)
-        {
-            // cannot go to run if previously in e-stop
+        case STATE_CMD_FREEZE:
+            if (ctrl_state_ == STATE_RUNNING)
+                allow_running_ = false;
+            // cannot go to freeze if previously in e-stop
             // go to standby first
             if (ctrl_state_ == STATE_ESTOP)
-            {
                 ret = -3;
-                break;
-            }
-
-            if (allow_running_)
-            {
-                ctrl_state_ = STATE_RUNNING;
-                frozen_ = false;
-            }
             else
-            {
-                // set to ready to allow for convergence
-                // to be checked and freeze to be triggered
                 ctrl_state_ = STATE_READY;
-                m3rt::M3_ERR(
-                        "Controller did not converge to freeze position, \
-                         cannot switch to running...\n");
-                ret = -2;
-            }
-        }
+            break;
 
-        break;
-    default:
-        m3rt::M3_ERR("Unknown state command %d...\n", state_cmd);
-        ret = -1;
-        break;
+        case STATE_CMD_START:
+            if (ctrl_state_ != STATE_RUNNING)
+            {
+                // cannot go to run if previously in e-stop
+                // go to standby first
+                if (ctrl_state_ == STATE_ESTOP)
+                {
+                    ret = -3;
+                    break;
+                }
+
+                if (allow_running_)
+                {
+                    ctrl_state_ = STATE_RUNNING;
+                    frozen_ = false;
+                }
+                else
+                {
+                    // set to ready to allow for convergence
+                    // to be checked and freeze to be triggered
+                    ctrl_state_ = STATE_READY;
+                    m3rt::M3_ERR(
+                            "Controller did not converge to freeze position, \
+                             cannot switch to running...\n");
+                    ret = -2;
+                }
+            }
+
+            break;
+        default:
+            m3rt::M3_ERR("Unknown state command %d...\n", state_cmd);
+            ret = -1;
+            break;
+        }
+        return ret;
     }
-    return ret;
-}
 
 };
 
