@@ -71,7 +71,7 @@ void RosControlComponent::StepStatus()
         if(!pwr_shr_ptr_->IsMotorPowerOn())
         {
             rt_sem_wait(state_mutex_); 
-            hw_ptr_->changeState(STATE_CMD_ESTOP);
+            hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
             rt_sem_signal(state_mutex_); 
         }
         cm_ptr_->update(ros::Time::now(),period_);
@@ -96,7 +96,7 @@ void RosControlComponent::StepCommand()
         hw_ptr_->write();
         if(loop_cnt_%100 == 0){
             if (realtime_pub_ptr_->trylock()){
-                realtime_pub_ptr_->msg_.state[0] = hw_ptr_->getCtrlState();
+                realtime_pub_ptr_->msg_.state[0] = hw_ptr_->getCtrlState("zlift"); //TODO: change this!!!!
                 realtime_pub_ptr_->unlockAndPublish();
             }
         }
