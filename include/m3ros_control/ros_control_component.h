@@ -124,17 +124,17 @@ public:
         else
             joint_mode_ = POSITION;
 
+        chain_map_["zlift"] = Chain_("zlift", 1);
         chain_map_["right_arm"] = Chain_(RIGHT_ARM,
                 bot_shr_ptr->GetNdof(RIGHT_ARM));
         chain_map_["left_arm"] = Chain_(LEFT_ARM,
-                bot_shr_ptr->GetNdof(RIGHT_ARM));
-        chain_map_["head"] = Chain_(HEAD, bot_shr_ptr->GetNdof(RIGHT_ARM));
-        chain_map_["torso"] = Chain_(TORSO, bot_shr_ptr->GetNdof(RIGHT_ARM));
+                bot_shr_ptr->GetNdof(LEFT_ARM));
+        chain_map_["head"] = Chain_(HEAD, bot_shr_ptr->GetNdof(HEAD));
+        chain_map_["torso"] = Chain_(TORSO, bot_shr_ptr->GetNdof(TORSO));
         chain_map_["right_hand"] = Chain_(RIGHT_HAND,
-                bot_shr_ptr->GetNdof(RIGHT_ARM));
+                bot_shr_ptr->GetNdof(RIGHT_HAND));
         chain_map_["left_hand"] = Chain_(LEFT_HAND,
-                bot_shr_ptr->GetNdof(RIGHT_ARM));
-        chain_map_["zlift"] = Chain_("zlift", 1);
+                bot_shr_ptr->GetNdof(LEFT_HAND));
         
         for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
         {
@@ -165,9 +165,9 @@ public:
             std::vector<joint_value_> *vals = &it->second.values;
             if (it->first == "zlift")
             {
-                (*vals)[0].position = zlift_shr_ptr_->GetPos();
-                (*vals)[0].velocity = zlift_shr_ptr_->GetPosDot();
-                (*vals)[0].effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
+                vals->at(0).position = zlift_shr_ptr_->GetPos();
+                vals->at(0).velocity = zlift_shr_ptr_->GetPosDot();
+                vals->at(0).effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
                 continue;
             }
             bool t_ = false;
@@ -218,8 +218,10 @@ public:
          }*/
 
         // in ready state, override joint_commands to freeze movements
+        
         if (ctrl_state_ == STATE_READY)
         {
+            joint_mode_ = POSITION; //change this!
             checkCtrlConvergence();
             freezeJoints();
         }
@@ -381,7 +383,9 @@ private:
 
     struct Chain_
     {
-        Chain_();
+        Chain_(){
+        
+        }
         
         Chain_(std::string name_, int ndof_, bool active_ = true) :
                 name(name_), ndof(ndof_), active(active_)
@@ -392,14 +396,19 @@ private:
             for (int i = 0; i < ndof; i++)
             {
                 values[i].name = name + "_j" + std::to_string(i);
-        
-
             }
         }
         Chain_(M3Chain chain_ref_, int ndof_, bool active_ = true) :
-                chain_ref(chain_ref_)
+                chain_ref(chain_ref_),ndof(ndof_), active(active_)
         {
-            Chain_(getStringFromEnum(chain_ref), ndof, active_);
+            name = getStringFromEnum(chain_ref);
+            values.resize(ndof);
+            if (name == "zlift")
+                values[0].position = 300.0;
+            for (int i = 0; i < ndof; i++)
+            {
+                values[i].name = name + "_j" + std::to_string(i);
+            }
         }
         
         std::string getStringFromEnum(M3Chain e)
