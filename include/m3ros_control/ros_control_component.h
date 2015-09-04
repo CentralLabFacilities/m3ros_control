@@ -36,6 +36,7 @@ extern "C"
 #include <hardware_interface/hardware_interface.h>
 #include <m3meka_msgs/M3ControlStateChange.h>
 #include <m3meka_msgs/M3ControlState.h>
+#include <m3meka_msgs/M3ControlStates.h>
 #include <m3meka_msgs/M3ControlStateErrorCodes.h>
 
 //#include <hardware_interface/joint_mode_interface.h>
@@ -529,11 +530,34 @@ private:
 
     public:
 
-    int getCtrlState(std::string group_name)
+    // Returns the number of groups
+    int getNbGroup()
     {
-        return chain_map_[group_name].ctrl_state;
+        return chain_map_.size();
     }
 
+    int getCtrlState(const std::string group_name)
+    {
+        map_it_t it = chain_map_.find(group_name);
+        if(it != chain_map_.end())
+            return it->second.ctrl_state;
+        else
+            return 0;
+    }
+    
+    // fills up the vectors for publishing
+    void getPublishableState(m3meka_msgs::M3ControlStates &msg)
+    {       
+        size_t i = 0;
+        for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++)
+        {
+            msg.group_name[i] = it->first;
+            msg.state[i] = it->second.ctrl_state;
+            ++i;
+        }
+    }
+
+    // change state for all the groups
     int changeStateAll(const int state_cmd)
     {
         int ret = 0;
@@ -551,76 +575,85 @@ private:
     int changeState(const int state_cmd, std::string group_name)
     {
         int ret = 0;
-        switch (state_cmd)
+        map_it_t it = chain_map_.find(group_name);
+        if(it != chain_map_.end())
         {
-        case STATE_CMD_ESTOP:
-
-            if (chain_map_[group_name].ctrl_state == STATE_RUNNING)
+            switch (state_cmd)
             {
-                //switch controller off
-                m3rt::M3_INFO("%s: You should switch controllers off !\n", group_name.c_str());
-            }
-            if (chain_map_[group_name].ctrl_state != STATE_ESTOP)
-            {
-                m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
-            }
+            case STATE_CMD_ESTOP:
 
-            chain_map_[group_name].ctrl_state = STATE_ESTOP;
-            chain_map_[group_name].frozen = false;
-            chain_map_[group_name].allow_running = false;
-            break;
+                if (it->second.ctrl_state == STATE_RUNNING)
+                {
+                    //switch controller off
+                    m3rt::M3_INFO("%s: You should switch controllers off !\n", group_name.c_str());
+                }
+                if (it->second.ctrl_state != STATE_ESTOP)
+                {
+                    m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
+                }
 
-        case STATE_CMD_STOP:
-            if (chain_map_[group_name].ctrl_state == STATE_RUNNING)
-                chain_map_[group_name].allow_running = false;
-            chain_map_[group_name].ctrl_state = STATE_STANDBY;
-            chain_map_[group_name].frozen = false;
-            break;
+                it->second.ctrl_state = STATE_ESTOP;
+                it->second.frozen = false;
+                it->second.allow_running = false;
+                break;
 
-        case STATE_CMD_FREEZE:
-            if (chain_map_[group_name].ctrl_state == STATE_RUNNING)
-                chain_map_[group_name].allow_running = false;
-            // cannot go to freeze if previously in e-stop
-            // go to standby first
-            if (chain_map_[group_name].ctrl_state == STATE_ESTOP)
-                ret = -3;
-            else
-                chain_map_[group_name].ctrl_state = STATE_READY;
-            break;
+            case STATE_CMD_STOP:
+                if (it->second.ctrl_state == STATE_RUNNING)
+                    it->second.allow_running = false;
+                it->second.ctrl_state = STATE_STANDBY;
+                it->second.frozen = false;
+                break;
 
-        case STATE_CMD_START:
-            if (chain_map_[group_name].ctrl_state != STATE_RUNNING)
-            {
-                // cannot go to run if previously in e-stop
+            case STATE_CMD_FREEZE:
+                if (it->second.ctrl_state == STATE_RUNNING)
+                    it->second.allow_running = false;
+                // cannot go to freeze if previously in e-stop
                 // go to standby first
-                if (chain_map_[group_name].ctrl_state == STATE_ESTOP)
-                {
+                if (it->second.ctrl_state == STATE_ESTOP)
                     ret = -3;
-                    break;
-                }
-
-                if (chain_map_[group_name].allow_running)
-                {
-                    chain_map_[group_name].ctrl_state = STATE_RUNNING;
-                    chain_map_[group_name].frozen = false;
-                }
                 else
-                {
-                    // set to ready to allow for convergence
-                    // to be checked and freeze to be triggered
-                    chain_map_[group_name].ctrl_state = STATE_READY;
-                    m3rt::M3_ERR(
-                            "%s: Controller did not converge to freeze position, \
-                             cannot switch to running...\n", group_name.c_str());
-                    ret = -2;
-                }
-            }
+                    it->second.ctrl_state = STATE_READY;
+                break;
 
-            break;
-        default:
-            m3rt::M3_ERR("Unknown state command %d...\n", state_cmd);
+            case STATE_CMD_START:
+                if (it->second.ctrl_state != STATE_RUNNING)
+                {
+                    // cannot go to run if previously in e-stop
+                    // go to standby first
+                    if (it->second.ctrl_state == STATE_ESTOP)
+                    {
+                        ret = -3;
+                        break;
+                    }
+
+                    if (it->second.allow_running)
+                    {
+                        it->second.ctrl_state = STATE_RUNNING;
+                        it->second.frozen = false;
+                    }
+                    else
+                    {
+                        // set to ready to allow for convergence
+                        // to be checked and freeze to be triggered
+                        it->second.ctrl_state = STATE_READY;
+                        m3rt::M3_ERR(
+                                "%s: Controller did not converge to freeze position, \
+                                 cannot switch to running...\n", group_name.c_str());
+                        ret = -2;
+                    }
+                }
+
+                break;
+            default:
+                m3rt::M3_ERR("Unknown state command %d...\n", state_cmd);
+                ret = -1;
+                break;
+            }
+        }
+        else
+        {
+            m3rt::M3_ERR("Unknown group name %s...\n", group_name.c_str());
             ret = -1;
-            break;
         }
         return ret;
     }
@@ -633,9 +666,11 @@ class RosControlComponent: public m3rt::M3Component
 {
 public:
     RosControlComponent() :
-            m3rt::M3Component(MAX_PRIORITY), bot_shr_ptr_(NULL), zlift_shr_ptr_(
-                    NULL), ros_nh_ptr_(NULL), spinner_ptr_(NULL), hw_ptr_(NULL), cm_ptr_(
-                    NULL), skip_loop_(false)
+            m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), spinner_running_(false),
+                was_estop_(true), cb_queue_ptr(NULL), bot_shr_ptr_(NULL),
+                zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), ros_nh_ptr_(NULL), 
+                ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(NULL),
+                hw_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0)
     {
         RegisterVersion("default", DEFAULT);
     }
@@ -666,6 +701,7 @@ public:
 
     SEM *state_mutex_;
     bool spinner_running_;
+    bool was_estop_;
     ros::CallbackQueue* cb_queue_ptr; // Used to separate this node queue from the global one
 
 protected:
@@ -732,12 +768,23 @@ private:
     bool changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
             m3meka_msgs::M3ControlStateChange::Response &res)
     {
-        // during change, no other function must use the ctrl_state.
-        if (req.command.state.size() > 0)
+        int ret = 0;
+        if (req.command.state.size() > 0 && req.command.state.size() == req.command.group_name.size())
         {
-            rt_sem_wait(this->state_mutex_);
-            int ret = hw_ptr_->changeStateAll(req.command.state[0]);
-            rt_sem_signal(this->state_mutex_);
+            for(size_t i=0; i < req.command.group_name.size(); i++)
+            {
+                // during change, no other function must use the ctrl_state.
+                rt_sem_wait(this->state_mutex_);
+                int ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
+                rt_sem_signal(this->state_mutex_);
+                res.result.group_name.push_back(req.command.group_name[i]);
+                res.result.state.push_back(hw_ptr_->getCtrlState(req.command.group_name[i]));
+                // only consider the worst error
+                if(ret_tmp != 0 && ret_tmp < ret){
+                    ret = ret_tmp;
+                }
+            }
+            
             if (ret < 0)
             {
                 if (ret == -2)

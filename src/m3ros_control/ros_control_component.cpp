@@ -67,13 +67,30 @@ void RosControlComponent::StepStatus()
     if(!skip_loop_)
     {
         //SAVE_TIME(start_dt_status_);
+        // read from hardware
         hw_ptr_->read();
+        // handle e_stop
         if(!pwr_shr_ptr_->IsMotorPowerOn())
         {
-            rt_sem_wait(state_mutex_); 
-            hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
-            rt_sem_signal(state_mutex_); 
+            if(!was_estop_)
+            {
+                rt_sem_wait(state_mutex_); 
+                hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
+                rt_sem_signal(state_mutex_); 
+                was_estop_ = true;
+            }
         }
+        else //automatic recover to stop after estop
+        {
+            if(was_estop_)
+            {
+                was_estop_ = false;
+                rt_sem_wait(state_mutex_); 
+                hw_ptr_->changeStateAll(STATE_CMD_STOP);
+                rt_sem_signal(state_mutex_); 
+            }
+        }
+        // controller manager update
         cm_ptr_->update(ros::Time::now(),period_);
                 
         //SAVE_TIME(end_dt_status_);
@@ -93,10 +110,12 @@ void RosControlComponent::StepCommand()
     {
         //SAVE_TIME(start_dt_cmd_);
         rt_sem_wait(state_mutex_); 
+        // write to hardware
         hw_ptr_->write();
+        // publish the ctrl state once every 100 loops
         if(loop_cnt_%100 == 0){
             if (realtime_pub_ptr_->trylock()){
-                realtime_pub_ptr_->msg_.state[0] = hw_ptr_->getCtrlState("zlift"); //TODO: change this!!!!
+                hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
                 realtime_pub_ptr_->unlockAndPublish();
             }
         }
@@ -134,12 +153,6 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         cb_queue_ptr = new ros::CallbackQueue();
         ros_nh_ptr2_->setCallbackQueue(cb_queue_ptr);
         
-        // Create a realtime publisher for the state
-        realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
-        realtime_pub_ptr_->msg_.group_name.push_back("all");
-        realtime_pub_ptr_->msg_.state.resize(1);
-        realtime_pub_ptr_->msg_.state[0] = m3meka_msgs::M3ControlStates::UNKNOWN;
-
         // Create a rt thread for state manager service handler
         spinner_running_ = true;
         rc=-1;
@@ -150,6 +163,12 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         spinner_ptr_->start();
         // Create the Meka Hardware interface
         hw_ptr_ = new MekaRobotHW(bot, lift, hw_interface_mode_);
+        
+        // Create a realtime publisher for the state
+        realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
+        realtime_pub_ptr_->msg_.group_name.resize(hw_ptr_->getNbGroup());
+        realtime_pub_ptr_->msg_.state.resize(hw_ptr_->getNbGroup());
+        
         // Create the controller manager
         cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                 *ros_nh_ptr_);
