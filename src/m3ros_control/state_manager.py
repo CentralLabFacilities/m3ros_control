@@ -35,8 +35,8 @@ class MekaStateManager(object):
                                       auto_start=False)
 
         #self._state_listener = \
-        #    rospy.Subscriber(m3roscontrol_name+"/state", M3ControlStates,
-        #                     self._state_callback, queue_size=1)
+        #    rospy.Subscriber(m3roscontrol_name+"_state_manager/state", M3ControlStates,
+        #                     self.state_callback, queue_size=1)
 
         self._current_state = M3ControlStates()
 
@@ -52,7 +52,7 @@ class MekaStateManager(object):
             rospy.logerr("Not starting %s action server, \
                          due to missing services", self._action_name)
             rospy.signal_shutdown("missing services")
-
+        
     def execute_cb(self, goal):
         """
         action lib goal execution
@@ -69,6 +69,8 @@ class MekaStateManager(object):
         if goal_valid:
             # init internal vars
             success = True
+            commanded_groups = goal.command.group_name
+            commanded_states = goal.command.state
             rate = rospy.Rate(2)
             # initialize the feedback
             self._feedback.group_already_changed = 0
@@ -80,91 +82,107 @@ class MekaStateManager(object):
                 strategy = M3StateChangeGoal.BEST_POSSIBLE
 
             # start executing the action
-            for group, state in zip(goal.command.group_name,
-                                    goal.command.state):
+            #self._feedback.current_group = group
+            self._feedback.change_attempt = 0
 
-                self._feedback.current_group = group
-                self._feedback.change_attempt = 0
+            # if strategy is retry N times
+            if strategy == M3StateChangeGoal.RETRY_N_TIMES:
+                retries = goal.retries
+            else:
+                retries = 1
 
-                # if strategy is retry N times
-                if strategy == M3StateChangeGoal.RETRY_N_TIMES:
-                    retries = goal.retries
-                else:
-                    retries = 1
+            controller_resetted = False
 
-                controller_resetted = False
+            # while retries
+            while retries:
+                self._feedback.change_attempt += 1
+                # if not keep retrying decrement retries
+                if strategy != M3StateChangeGoal.KEEP_TRYING:
+                    retries -= 1
 
-                # while retries
-                while retries:
-                    self._feedback.change_attempt += 1
-                    # if not keep retrying decrement retries
-                    if strategy != M3StateChangeGoal.KEEP_TRYING:
-                        retries -= 1
+                # check that preempt has not been requested by the client
+                if self._as.is_preempt_requested():
+                    rospy.loginfo('%s: Preempted' % self._action_name)
+                    self._as.set_preempted()
+                    success = False
+                    break
 
-                    # check that preempt has not been requested by the client
-                    if self._as.is_preempt_requested():
-                        rospy.loginfo('%s: Preempted' % self._action_name)
-                        self._as.set_preempted()
-                        success = False
-                        break
+                # try to change state of that group
+                req = M3ControlStateChangeRequest()
+                req.command.group_name = commanded_groups
+                req.command.state = commanded_states
 
-                    # try to change state of that group
-                    req = M3ControlStateChangeRequest()
-                    req.command.group_name.append(group)
-                    req.command.state.append(state)
+                try:
+                    resp = self._state_client(req)
+                except rospy.ServiceException:
+                    rospy.logerr("Change_state services not available")
+                    rospy.signal_shutdown("Change_state \
+                                          services not available")
 
-                    try:
-                        resp = self._state_client(req)
-                    except rospy.ServiceException:
-                        rospy.logerr("Change_state services not available")
-                        rospy.signal_shutdown("Change_state \
-                                              services not available")
+                # if successull break this while loop to continue
+                # to next group
+                if resp.error_code.val == M3ControlStateErrorCodes.SUCCESS:
+                    break
 
-                    # if successull break this while loop to continue
-                    # to next group
-                    if resp.error_code.val == M3ControlStateErrorCodes.SUCCESS:
-                        self._feedback.group_already_changed += 1
-                        break
+                # cleanup the group command/state for next attempd
+                groups_to_reset = []
+                groups_to_retry = []
+                states_to_retry = []
+                for group_name, state, commanded_state in zip(resp.result.group_name, resp.result.state, commanded_states):
+                    if state != commanded_state:
+                        groups_to_retry.append(group_name)
+                        states_to_retry.append(commanded_state)
+                        # find the groups that made it to freeze to reset their controllers
+                        if state == M3ControlStates.FREEZE:
+                            groups_to_reset.append(group_name)
+                commanded_groups = groups_to_retry
+                commanded_states = states_to_retry
 
-                    # if halt on failure, finish the action lib
-                    if strategy == M3StateChangeGoal.HALT_ON_FAILURE:
-                        self._result.result = M3ControlStates()
-                        rospy.logerr("Changing control state of group %s\
-                        failed, halt on failure requested", group)
-                        self._as.set_aborted(self._result)
-                        return
-                    # if best effort break this while loop to continue
-                    # to next group
-                    if strategy == M3StateChangeGoal.BEST_POSSIBLE:
-                        break
-                    # if CONTROLLER_NOT_CONVERGED and group not yet reseted
-                    if (resp.error_code.val ==
-                            M3ControlStateErrorCodes.CONTROLLER_NOT_CONVERGED):
-                        if not controller_resetted:
-                            # try reset the controllers
-                            reset_ret = self.reset_controllers(group)
-                            # remember we already switched for this group
-                            # (do not reset in next attempt)
-                            controller_resetted = True
-                            # if success, continue next retry if any
-                            if reset_ret:
-                                continue
-                            # if not, break this while loop to continue
-                            # to next group
-                            else:
-                                break
+                # if halt on failure, finish the action lib
+                if strategy == M3StateChangeGoal.HALT_ON_FAILURE:
+                    self._result.result = resp.result
+                    rospy.logerr("Changing control state of group %s\
+                    failed, halt on failure requested", str(groups_to_retry))
+                    self._as.set_aborted(self._result)
+                    return
+                # if best effort then we are happy with this attempt
+                # to next group
+                if strategy == M3StateChangeGoal.BEST_POSSIBLE:
+                    self._result.result = resp.result
+                    self._as.set_succeeded(self._result)
+                    return
+                # if CONTROLLER_NOT_CONVERGED and group not yet resetted
+                if (resp.error_code.val ==
+                        M3ControlStateErrorCodes.CONTROLLER_NOT_CONVERGED):
+                    if not controller_resetted:
+                        # try reset the controllers
+                        reset_ret = self.reset_controllers(groups_to_reset)
+                        # remember we already switched
+                        # (do not reset in next attempt)
+                        controller_resetted = True
+                        # if success, continue next retry if any
+                        if reset_ret:
+                            continue
+                        # if not, break this while loop to continue
+                        # to next group
+                        else:
+                            self._result.result = resp.result
+                            rospy.logerr("Changing control state of group %s\
+                            failed, and resetting the controllers for group %s did not work", str(groups_to_retry), str(groups_to_reset))
+                            self._as.set_aborted(self._result)
+                            return
 
-                    # if FAILURE, skip this group
-                    if (resp.error_code.val ==
-                            M3ControlStateErrorCodes.FAILURE):
-                        break
+                # if FAILURE, skip this group
+                if (resp.error_code.val ==
+                        M3ControlStateErrorCodes.FAILURE):
+                    continue
 
-                    # give some time for potentially resetted controllers
-                    # to converge
-                    rate.sleep()
+                # give some time for potentially resetted controllers
+                # to converge
+                rate.sleep()
 
-                    # publish the feedback
-                    self._as.publish_feedback(self._feedback)
+                # publish the feedback
+                self._as.publish_feedback(self._feedback)
 
             if success:
                 self._result.result = self._current_state

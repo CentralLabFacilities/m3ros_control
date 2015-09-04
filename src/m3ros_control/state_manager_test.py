@@ -15,7 +15,10 @@ class MekaStateManagerTest(object):
     def __init__(self, name, m3roscontrol_name):
         rospy.init_node('meka_state_manager_test')
         self._service_name = name
-        self._cur_state = M3ControlStates.ESTOP
+        self._cur_state = {}
+        self._cur_state["left_arm"] = M3ControlStates.ESTOP
+        self._cur_state["head"] = M3ControlStates.ESTOP
+        
         self.service = rospy.Service(m3roscontrol_name + '/change_state',
                                      M3ControlStateChange, self.callback)
                                      
@@ -30,8 +33,10 @@ class MekaStateManagerTest(object):
     def timeout_cb(self):
       
         msg = M3ControlStates()
-        msg.group_name.append("all")
-        msg.state.append(self._cur_state)
+        msg.group_name.append("left_arm")
+        msg.group_name.append("head")
+        msg.state.append(self._cur_state["left_arm"])
+        msg.state.append(self._cur_state["head"])
         self._pub.publish(msg) 
 
     def callback(self, req):
@@ -40,10 +45,22 @@ class MekaStateManagerTest(object):
         resp = M3ControlStateChangeResponse()
         #resp.error_code.val=M3ControlStateErrorCodes.CONTROLLER_NOT_CONVERGED
         resp.error_code.val=M3ControlStateErrorCodes.SUCCESS
+        #resp.error_code.val=M3ControlStateErrorCodes.FAILURE
         
-        if len(req.command.state) > 0:
-            self._cur_state = req.command.state[0]
-        
+        for group_name, state in zip(req.command.group_name, req.command.state):
+            if group_name in self._cur_state:
+                
+                resp.result.group_name.append(group_name)
+                if "head" in group_name:
+                    self._cur_state[group_name] = 0
+                    resp.result.state.append(0)
+                    resp.error_code.val=M3ControlStateErrorCodes.CONTROLLER_NOT_CONVERGED
+                else:
+                    self._cur_state[group_name] = state
+                    resp.result.state.append(state)
+            else:
+                rospy.logerr("group %s does not exist", group_name)            
+        print resp
         return resp
 
 if __name__ == '__main__':
