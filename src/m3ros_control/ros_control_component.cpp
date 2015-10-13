@@ -83,13 +83,10 @@ void RosControlComponent::StepStatus()
         // handle e_stop
         if(!pwr_shr_ptr_->IsMotorPowerOn())
         {
-            if(!was_estop_)
-            {
                 rt_sem_wait(state_mutex_); 
                 hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
                 rt_sem_signal(state_mutex_); 
                 was_estop_ = true;
-            }
         }
         else //automatic recover to stop after estop
         {

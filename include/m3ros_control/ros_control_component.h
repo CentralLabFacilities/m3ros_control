@@ -778,18 +778,26 @@ private:
         int ret = 0;
         if (req.command.state.size() > 0 && req.command.state.size() == req.command.group_name.size())
         {
-            for(size_t i=0; i < req.command.group_name.size(); i++)
+            // E-stop state can be modified only from internal commands
+            if (!was_estop_)
             {
-                // during change, no other function must use the ctrl_state.
-                rt_sem_wait(this->state_mutex_);
-                int ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
-                rt_sem_signal(this->state_mutex_);
-                res.result.group_name.push_back(req.command.group_name[i]);
-                res.result.state.push_back(hw_ptr_->getCtrlState(req.command.group_name[i]));
-                // only consider the worst error
-                if(ret_tmp != 0 && ret_tmp < ret){
-                    ret = ret_tmp;
+                for(size_t i=0; i < req.command.group_name.size(); i++)
+                {
+                    // during change, no other function must use the ctrl_state.
+                    rt_sem_wait(this->state_mutex_);
+                    int ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
+                    rt_sem_signal(this->state_mutex_);
+                    res.result.group_name.push_back(req.command.group_name[i]);
+                    res.result.state.push_back(hw_ptr_->getCtrlState(req.command.group_name[i]));
+                    // only consider the worst error
+                    if(ret_tmp != 0 && ret_tmp < ret){
+                        ret = ret_tmp;
+                    }
                 }
+            }
+            else
+            {
+                ret = -3;
             }
             
             if (ret < 0)
