@@ -60,9 +60,12 @@ extern "C"
 
 // acceptable errors between controller output and current state
 // to verify controllers were reset to current state
-#define ACCEPTABLE_VEL_MIRROR       0.05
-#define ACCEPTABLE_POS_MIRROR       0.17
-#define ACCEPTABLE_EFFORT_MIRROR    1.0
+#define ACCEPTABLE_ANG_MIRROR       0.17
+#define ACCEPTABLE_ANGVEL_MIRROR    0.05
+#define ACCEPTABLE_TORQUE_MIRROR    1.0
+#define ACCEPTABLE_POS_MIRROR       10.0 //in mm
+#define ACCEPTABLE_POSVEL_MIRROR    2.0 //in mm/s
+#define ACCEPTABLE_FORCE_MIRROR     10.0
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -336,6 +339,9 @@ private:
     hardware_interface::PositionJointInterface pj_interface_;
     hardware_interface::EffortJointInterface ej_interface_;
     hardware_interface::VelocityJointInterface vj_interface_;
+    
+    bool converged;
+    double epsilon;
 
     void registerHandles(std::string name, double* pos, double* vel,
             double* eff, double* poscmd, double* effcmd, double* velcmd)
@@ -478,15 +484,21 @@ private:
      to tell if controllers have converged */
     bool checkCtrlConvergence(std::string group_name)
     {
-        bool converged = true;
+        converged = true;
         std::vector<joint_value_> *vals = &chain_map_[group_name].values;
         switch (chain_map_[group_name].joint_mode)
         {
         case Chain_::joint_mode_t::VELOCITY:
+            // acceptable error is not the same in rotation and in translation
+            if (group_name=="z_lift")
+                epsilon = ACCEPTABLE_POSVEL_MIRROR;
+            else
+                epsilon = ACCEPTABLE_ANGVEL_MIRROR;
+                
             for (size_t i = 0; i < vals->size(); i++)
             {
                 vals->at(i).err = std::fabs(vals->at(i).vel_cmd);
-                if (vals->at(i).err > ACCEPTABLE_VEL_MIRROR)
+                if (vals->at(i).err > epsilon)
                 {
                     converged = false;
                     break;
@@ -494,25 +506,37 @@ private:
             }
             break;
         case Chain_::joint_mode_t::POSITION:
+            // acceptable error is not the same in rotation and in translation
+            if (group_name=="z_lift")
+                epsilon = ACCEPTABLE_POS_MIRROR;
+            else
+                epsilon = ACCEPTABLE_ANG_MIRROR;
+                
             for (size_t i = 0; i < vals->size(); i++)
             {
                 vals->at(i).err = std::fabs(vals->at(i).pos_cmd - vals->at(i).position);
-                if (vals->at(i).err > ACCEPTABLE_POS_MIRROR)
+                if (vals->at(i).err > epsilon)
                 {
                     converged = false;
                     if (chain_map_[group_name].allow_running)
                         m3rt::M3_DEBUG( 
-                                "%s: joint %d, shows a position difference %f > %f \n", group_name.c_str(),
-                                i, vals->at(i).err, ACCEPTABLE_POS_MIRROR);
+                                "%s: joint %d, shows a position/angular difference %f > %f \n", group_name.c_str(),
+                                i, vals->at(i).err, epsilon);
                     break;
                 }
             }
             break;
         case Chain_::joint_mode_t::EFFORT:
+            // acceptable error is not the same in rotation and in translation
+            if (group_name=="z_lift")
+                epsilon = ACCEPTABLE_FORCE_MIRROR;
+            else
+                epsilon = ACCEPTABLE_TORQUE_MIRROR;
+                
             for (size_t i = 0; i < vals->size(); i++)
             {
                 vals->at(i).err = std::fabs(vals->at(i).eff_cmd - vals->at(i).effort);
-                if (vals->at(i).err > ACCEPTABLE_EFFORT_MIRROR)
+                if (vals->at(i).err > epsilon)
                 {
                     converged = false;
                     break;
