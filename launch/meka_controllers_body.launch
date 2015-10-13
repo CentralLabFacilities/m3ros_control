@@ -4,7 +4,7 @@
 
 <!-- upper body -->
 <group ns="meka_roscontrol" >
-  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_body_ctrl" args="start zlift_position_controller torso_position_trajectory_controller"/>
+  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_body_ctrl" args="start zlift_position_trajectory_controller torso_position_trajectory_controller"/>
 
 </group>
 </launch>

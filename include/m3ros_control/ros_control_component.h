@@ -240,18 +240,17 @@ public:
             {
                 zlift_shr_ptr_->SetDesiredStiffness(s_);
                 zlift_shr_ptr_->SetSlewRate(
-                        s_
-                                * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
+                        s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
                 switch (it->second.joint_mode)
                 {
                 case Chain_::joint_mode_t::VELOCITY:
                     zlift_shr_ptr_->SetDesiredControlMode(
                             JOINT_MODE_THETADOT_GC);
-                    zlift_shr_ptr_->SetDesiredPosDot((*vals)[0].vel_cmd);
+                    zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).pos_cmd);
                     break;
                 case Chain_::joint_mode_t::POSITION:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-                    zlift_shr_ptr_->SetDesiredPos((*vals)[0].pos_cmd);
+                    zlift_shr_ptr_->SetDesiredPos(vals->at(0).pos_cmd);
                     break;
                 case Chain_::joint_mode_t::EFFORT: //not yet implemented
                     break;

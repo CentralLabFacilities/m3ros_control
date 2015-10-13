@@ -11,4 +11,4 @@ preload_controllers:
   - left_hand_position_trajectory_controller
   - torso_position_trajectory_controller
   - head_position_trajectory_controller
-  - zlift_position_controller
+  - zlift_position_trajectory_controller

@@ -16,8 +16,24 @@ meka_roscontrol:
   # Position only controllers ----------------------------------------------
 
   zlift_position_controller:
-    type: "position_controllers/JointPositionController"
-    joint: zlift_j0
+    type: "position_controllers/JointGroupPositionController"
+    joints: 
+      - zlift_j0
+
+  zlift_position_trajectory_controller:
+    type: "position_controllers/JointTrajectoryController"
+    joints:
+      - zlift_j0
+    
+    constraints:
+      goal_time: 5.0
+      stopped_velocity_tolerance: 0.05
+      zlift_j0:
+        goal: 0.1
+
+      state_publish_rate: 50
+      action_monitor_rate: 20
+      #hold_trajectory_duration: 0 #defaults to 0.5
 
   torso_position_controller:
     type: "position_controllers/JointGroupPositionController"
