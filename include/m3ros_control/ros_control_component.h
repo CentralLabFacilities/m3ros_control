@@ -60,7 +60,7 @@ extern "C"
 
 // acceptable errors between controller output and current state
 // to verify controllers were reset to current state
-#define ACCEPTABLE_ANG_MIRROR       0.17
+#define ACCEPTABLE_ANG_MIRROR       0.034
 #define ACCEPTABLE_ANGVEL_MIRROR    0.05
 #define ACCEPTABLE_TORQUE_MIRROR    1.0
 #define ACCEPTABLE_POS_MIRROR       10.0 //in mm
@@ -112,6 +112,7 @@ public:
             bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL)
     {
         using namespace hardware_interface;
+        printcount = 0;
 
         assert(bot_shr_ptr != NULL);
         assert(zlift_shr_ptr != NULL);
@@ -205,6 +206,7 @@ public:
 
     void write()
     {
+        printcount++;
         //if (safety_check())
         // if motor not powered on, isPowerOn cannot see the status of the E-Stop
         bot_shr_ptr_->SetMotorPowerOn();
@@ -249,7 +251,10 @@ public:
                 case Chain_::joint_mode_t::VELOCITY:
                     zlift_shr_ptr_->SetDesiredControlMode(
                             JOINT_MODE_THETADOT_GC);
-                    zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).pos_cmd);
+                    if(it->second.frozen)
+                        zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).frz_cmd);
+                    else
+                        zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).pos_cmd);
                     break;
                 case Chain_::joint_mode_t::POSITION:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
@@ -282,15 +287,27 @@ public:
                         break;
                     bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
                     bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref,
-                            i, s_);
+                            i, s_); 
                     switch (it->second.joint_mode)
                     {
                     case Chain_::joint_mode_t::VELOCITY: //not yet implemented
                         break;
                     case Chain_::joint_mode_t::POSITION:
                         bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
-                        bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                        if(it->second.frozen)
+                        {
+                            //if(printcount%200)
+                            //    m3rt::M3_INFO("%s,%s: sending frozen cmd %f, ctrl cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).frz_cmd, vals->at(i).pos_cmd);
+                            bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                                RAD2DEG(vals->at(i).frz_cmd)); 
+                        }
+                        else
+                        {
+                            //if(printcount%200)
+                            //    m3rt::M3_INFO("%s,%s: sending CTRL cmd %f, frz cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).pos_cmd, vals->at(i).frz_cmd);
+                            bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
                                 RAD2DEG(vals->at(i).pos_cmd));
+                        }
                         break;
                     case Chain_::joint_mode_t::EFFORT: //not yet implemented
                         break;
@@ -315,14 +332,26 @@ public:
                     break;
                 case Chain_::joint_mode_t::POSITION:
                     bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
-                    bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                    if(it->second.frozen)
+                    {
+                        //if(printcount%200)
+                        //    m3rt::M3_INFO("%s,%s: sending frozen cmd %f, ctrl cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).frz_cmd, vals->at(i).pos_cmd);
+                        bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                            RAD2DEG(vals->at(i).frz_cmd));
+                    }
+                    else
+                    {
+                        //if(printcount%200)
+                        //    m3rt::M3_INFO("%s,%s: sending CTRL cmd %f, frz cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).pos_cmd, vals->at(i).frz_cmd);
+                        bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
                             RAD2DEG(vals->at(i).pos_cmd));
+                    }
                     break;
                 case Chain_::joint_mode_t::EFFORT:
                     bot_shr_ptr_->SetModeTorqueGc(it->second.chain_ref, i);
                     bot_shr_ptr_->SetTorque_mNm(it->second.chain_ref, i,
                             m2mm(vals->at(i).eff_cmd));
-                    break;
+                    break;                    
                 default:
                     break;
                 }
@@ -342,6 +371,7 @@ private:
     
     bool converged;
     double epsilon;
+    int printcount;
 
     void registerHandles(std::string name, double* pos, double* vel,
             double* eff, double* poscmd, double* effcmd, double* velcmd)
@@ -437,7 +467,7 @@ private:
     map_t chain_map_;
 
     // store a freeze state (cur pos/ zero vel/ cur trq , depends on mode)
-    // and override the current commanded pos/vel/trq with the stored one
+    // and a freeze command
     void freezeJoints(std::string group_name)
     {
         std::vector<joint_value_> *vals = &chain_map_[group_name].values;
@@ -449,7 +479,7 @@ private:
             {
                 if (!chain_map_[group_name].frozen)
                     vals->at(i).frz_cmd = 0.0;
-                vals->at(i).vel_cmd = vals->at(i).frz_cmd;
+                //vals->at(i).vel_cmd = vals->at(i).frz_cmd;
             }
             chain_map_[group_name].frozen = true;
             break;
@@ -458,11 +488,12 @@ private:
             for (size_t i = 0; i < vals->size(); i++)
             {
                 if (!chain_map_[group_name].frozen)
+                    m3rt::M3_INFO("%s,%s: Frozen to current position %f, prev cmd: %f\n ", group_name.c_str(), vals->at(i).name.c_str(), vals->at(i).position, vals->at(i).pos_cmd);
+                
+                if (!chain_map_[group_name].frozen)
                     vals->at(i).frz_cmd = vals->at(i).position;
-                vals->at(i).pos_cmd = vals->at(i).frz_cmd;
+                //vals->at(i).pos_cmd = vals->at(i).frz_cmd;
             }
-            if (!chain_map_[group_name].frozen)
-                m3rt::M3_INFO("%s: Frozen to current position\n", group_name.c_str());
             chain_map_[group_name].frozen = true;
             break;
         case Chain_::joint_mode_t::EFFORT:
@@ -471,7 +502,7 @@ private:
             {
                 if (!chain_map_[group_name].frozen)
                     vals->at(i).frz_cmd = vals->at(i).effort;
-                vals->at(i).eff_cmd = vals->at(i).frz_cmd;
+                //vals->at(i).eff_cmd = vals->at(i).frz_cmd;
             }
             chain_map_[group_name].frozen = true;
             break;
@@ -507,7 +538,7 @@ private:
             break;
         case Chain_::joint_mode_t::POSITION:
             // acceptable error is not the same in rotation and in translation
-            if (group_name=="z_lift")
+            if (group_name == "z_lift")
                 epsilon = ACCEPTABLE_POS_MIRROR;
             else
                 epsilon = ACCEPTABLE_ANG_MIRROR;
@@ -624,6 +655,7 @@ private:
                 if (it->second.ctrl_state == STATE_RUNNING)
                     it->second.allow_running = false;
                 it->second.ctrl_state = STATE_STANDBY;
+                m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
                 it->second.frozen = false;
                 break;
 
@@ -635,7 +667,10 @@ private:
                 if (it->second.ctrl_state == STATE_ESTOP)
                     ret = -3;
                 else
+                {
                     it->second.ctrl_state = STATE_READY;
+                    m3rt::M3_INFO("%s: in freeze state\n ", group_name.c_str());
+                }
                 break;
 
             case STATE_CMD_START:
@@ -653,6 +688,7 @@ private:
                     {
                         it->second.ctrl_state = STATE_RUNNING;
                         it->second.frozen = false;
+                        m3rt::M3_INFO("%s: allowed to run, putting in running state\n ", group_name.c_str());
                     }
                     else
                     {
