@@ -189,9 +189,16 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         rc=-1;
         rc = rt_thread_create((void*)ros_async_spinner, (void*)this, 1000000);
         //m3rt::M3_INFO("rc: %d\n",(int)rc);
+        
         // Create a std async spinner for the controller mananager services and callbacks
-        spinner_ptr_ = new ros::AsyncSpinner(1); // Use one thread for the external communications
-        spinner_ptr_->start();
+        // Async spinner fail to cleanly stop with such errors
+        // boost::recursive_mutex::~recursive_mutex(): Assertion `!pthread_mutex_destroy(&m)' failed
+        // spinner_ptr_ = new ros::AsyncSpinner(1); // Use one thread for the external communications
+        // spinner_ptr_->start();
+        // THUS use our own main spinner.
+        mrc=-1;
+        mrc = rt_thread_create((void*)rosmain_async_spinner, (void*)this, 1000000);
+        
         // Create the Meka Hardware interface
         hw_ptr_ = new MekaRobotHW(bot, lift, hw_interface_mode_);
         
@@ -204,12 +211,12 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
                 *ros_nh_ptr_);
                 
-        // Initialize controllers that are already listed in the config file
+        //// Initialize controllers that are already listed in the config file
         PreLoadControllers();
                 
-        // Advertize the change state service in the dedicated nodehandler/spinner
+        //// Advertize the change state service in the dedicated nodehandler/spinner
         srv_ =  ros_nh_ptr2_->advertiseService("change_state", 
-            &RosControlComponent::changeStateCallback,this); 
+                &RosControlComponent::changeStateCallback,this); 
     }
     else
     {
@@ -260,6 +267,42 @@ void *ros_async_spinner(void * arg)
     {
         rt_sem_delete(ros_comp_ptr->state_mutex_);
     }
+    
+    rt_task_delete(task);
+    
+    return static_cast<void *>(0);
+}
+
+// asynchronous spinner for ROS implemented as an rt_task to avoid problems of AsyncSpinner
+// has priority 2 lower than the current task
+void *rosmain_async_spinner(void * arg)
+{
+    RosControlComponent * ros_comp_ptr = (RosControlComponent *)arg;
+    int prio = std::max(1,ros_comp_ptr->GetPriority()-2);
+    
+    m3rt::M3_INFO("Starting main async spinner thread with priority %d.\n", prio);
+
+    RT_TASK *task;
+    task = rt_task_init_schmod(nam2num("ROSMSP"), prio, 0, 0, SCHED_FIFO, 0xFF);
+    if (task==NULL)
+    {
+        m3rt::M3_ERR("Failed to create RT-TASK ROSMSP\n",0);
+        return 0;
+    }
+
+    rt_allow_nonroot_hrt();
+    mlockall(MCL_CURRENT | MCL_FUTURE);
+    rt_make_soft_real_time();
+
+    while (ros_comp_ptr->spinner_running_)
+    {
+        // call all the cb from the callback queue
+        ros::getGlobalCallbackQueue()->callAvailable(ros::WallDuration(0));
+        rt_sleep(nano2count(100000000));
+    }    
+    
+    rt_task_delete(task);
+    
     return static_cast<void *>(0);
 }
 

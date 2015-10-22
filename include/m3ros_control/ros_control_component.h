@@ -720,6 +720,7 @@ private:
 };
 
 void *ros_async_spinner(void * arg);
+void *rosmain_async_spinner(void * arg);
 
 class RosControlComponent: public m3rt::M3Component
 {
@@ -734,15 +735,29 @@ public:
         RegisterVersion("default", DEFAULT);
     }
     ~RosControlComponent()
-    {
-        if (spinner_ptr_ != NULL)
-            delete spinner_ptr_;
-        if (hw_ptr_ != NULL)
-            delete hw_ptr_;
-        if (ros_nh_ptr_ != NULL)
-            delete ros_nh_ptr_;
+    {       
+
         if (cm_ptr_ != NULL)
             delete cm_ptr_;
+
+        if (realtime_pub_ptr_ != NULL)
+            delete realtime_pub_ptr_;
+
+        if (hw_ptr_ != NULL)
+            delete hw_ptr_;
+
+        if (spinner_ptr_ != NULL)
+            delete spinner_ptr_;
+    
+        if (ros_nh_ptr_ != NULL)
+            delete ros_nh_ptr_;
+
+        if (ros_nh_ptr2_ != NULL)
+            delete ros_nh_ptr2_;
+
+        if (cb_queue_ptr != NULL)
+            delete cb_queue_ptr;
+
     }
 
     google::protobuf::Message* GetCommand()
@@ -784,24 +799,28 @@ protected:
 
     void RosShutdown()
     {
-        if (spinner_ptr_ != NULL)
-            spinner_ptr_->stop();
+        m3rt::M3_INFO("Shutting down ros interface\n");
+        //UnloadControllers() is blocked by no CM->update being called anylonger
+        // to swap the double-buffered controller list
+        
+        //if (spinner_ptr_ != NULL)
+        //    spinner_ptr_->stop();
 
         spinner_running_ = false;
         if (rc)
         {
+            m3rt::M3_INFO("Waiting for RT spinner to stop...\n");
             rt_thread_join(rc);
             rc = -1;
         }
-        //if (srv_ptr_ != NULL)
-        //    srv_ptr_->shutdown();
-
-        UnloadControllers();
         
-        if (cb_queue_ptr !=NULL)
-            delete cb_queue_ptr;
-        if (ros_nh_ptr_ != NULL)
-            ros_nh_ptr_->shutdown();
+        if (mrc)
+        {
+            m3rt::M3_INFO("Waiting for RT main spinner to stop...\n");
+            rt_thread_join(mrc);
+            mrc = -1;
+        }
+        srv_.shutdown();
     }
 
 private:
@@ -811,7 +830,7 @@ private:
     m3::M3JointZLift* zlift_shr_ptr_;
     m3::M3Pwr* pwr_shr_ptr_;
 
-    long rc;
+    long rc,mrc;
     ros::Duration period_;
     ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_;
     ros::ServiceServer srv_;
