@@ -1,10 +1,11 @@
 <launch>
 
 <rosparam file="$(find m3ros_control)/config/hardware_controllers.yaml" command="load" />
+<arg name="cmd" default="start"/>
 
 <!-- arm controllers -->
 <group ns="meka_roscontrol" >
-  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_arm_ctrl" args="start right_arm_position_trajectory_controller left_arm_position_trajectory_controller"/>
+  <node pkg="controller_manager" type="controller_manager" output="screen" name="meka_arm_ctrl" args="$(arg cmd) right_arm_position_trajectory_controller left_arm_position_trajectory_controller"/>
 </group>
 </launch>
 
