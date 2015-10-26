@@ -61,6 +61,59 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename)
         return false;
     }
     
+    if (doc["ctrl_acceptable_mirror_error"])
+    {
+        YAML::Node ctrl_err_node = doc["ctrl_acceptable_mirror_error"]["angular"];
+        if(ctrl_err_node)
+        {
+            try {
+                (ctrl_err_node)["position"] >> accept_ang_pos_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_ang_pos_ = 0.017; //default value
+            }
+            
+            try {
+                (ctrl_err_node)["velocity"] >> accept_ang_vel_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_ang_vel_ = 0.005; //default value
+            }
+            
+            try {
+                (ctrl_err_node)["effort"] >> accept_torque_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_torque_ = 0.1; //default value
+            }
+        }
+        
+        ctrl_err_node = doc["ctrl_acceptable_mirror_error"]["linear"];
+        if(ctrl_err_node)
+        {
+            try {
+                (ctrl_err_node)["position"] >> accept_lin_pos_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_lin_pos_ = 1.0; //default value
+            }
+            
+            try {
+                (ctrl_err_node)["velocity"] >> accept_lin_vel_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_lin_vel_ = 0.2; //default value
+            }
+            
+            try {
+                (ctrl_err_node)["effort"] >> accept_force_;
+            }
+            catch(YAML::KeyNotFound& e) {
+                accept_force_ = 1.0; //default value
+            }
+        }
+    }
+
     if (doc["preload_controllers"])
     {
         const YAML::Node& controllers = doc["preload_controllers"];
@@ -201,6 +254,8 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift)
         
         // Create the Meka Hardware interface
         hw_ptr_ = new MekaRobotHW(bot, lift, hw_interface_mode_);
+        hw_ptr_->setCtrlAcceptableMirrorError(accept_ang_pos_, accept_ang_vel_, accept_torque_,
+                                              accept_lin_pos_, accept_lin_vel_, accept_force_);
         
         // Create a realtime publisher for the state
         realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);

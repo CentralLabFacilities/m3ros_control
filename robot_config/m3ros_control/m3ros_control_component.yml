@@ -3,6 +3,15 @@ humanoid: m3humanoid_right_left_arm_torso_head_mr18
 zlift: m3joint_mz7_j0
 pwr_component: m3pwr_pwr038
 hw_interface_mode: position #effort
+ctrl_acceptable_mirror_error:
+  angular:
+    position: 0.0872665
+    velocity: 0.05
+    effort: 1.0
+  linear:
+    position: 10.0
+    velocity: 2.0
+    effort: 10.0
 preload_controllers:
   - joint_state_controller
   - right_arm_position_trajectory_controller

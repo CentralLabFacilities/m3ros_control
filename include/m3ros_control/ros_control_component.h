@@ -58,15 +58,6 @@ extern "C"
 #define STATE_CMD_FREEZE    2
 #define STATE_CMD_START     3
 
-// acceptable errors between controller output and current state
-// to verify controllers were reset to current state
-#define ACCEPTABLE_ANG_MIRROR       0.034
-#define ACCEPTABLE_ANGVEL_MIRROR    0.05
-#define ACCEPTABLE_TORQUE_MIRROR    1.0
-#define ACCEPTABLE_POS_MIRROR       10.0 //in mm
-#define ACCEPTABLE_POSVEL_MIRROR    2.0 //in mm/s
-#define ACCEPTABLE_FORCE_MIRROR     10.0
-
 ////////// Activate some timing infos
 //#define TIMING
 #define NANO2SEC(a) a/1e9
@@ -359,6 +350,22 @@ public:
         }
     }
 
+    void setCtrlAcceptableMirrorError(const double accept_ang_pos,
+                                      const double accept_ang_vel,
+                                      const double accept_torque,
+                                      const double accept_lin_pos,
+                                      const double accept_lin_vel,
+                                      const double accept_force)
+    {
+        ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::POSITION] = accept_lin_pos;
+        ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::VELOCITY] = accept_lin_vel;
+        ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::EFFORT] = accept_force;
+        ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::POSITION] = accept_ang_pos;
+        ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::VELOCITY] = accept_ang_vel;
+        ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::EFFORT] = accept_torque;
+        
+    }
+
 private:
 
     m3::M3Humanoid* bot_shr_ptr_;
@@ -461,6 +468,13 @@ private:
         std::vector<joint_value_> values;
     };
 
+    typedef std::map<Chain_::joint_mode_t, double> mirror_error_map_t;
+    struct ctrl_error_
+    {
+        mirror_error_map_t linear;
+        mirror_error_map_t angular;
+    }ctrl_acc_mirror_error_;
+
     typedef std::map<std::string, Chain_> map_t;
     typedef map_t::iterator map_it_t;
 
@@ -522,9 +536,9 @@ private:
         case Chain_::joint_mode_t::VELOCITY:
             // acceptable error is not the same in rotation and in translation
             if (group_name=="z_lift")
-                epsilon = ACCEPTABLE_POSVEL_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::VELOCITY];
             else
-                epsilon = ACCEPTABLE_ANGVEL_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::VELOCITY];
                 
             for (size_t i = 0; i < vals->size(); i++)
             {
@@ -539,9 +553,9 @@ private:
         case Chain_::joint_mode_t::POSITION:
             // acceptable error is not the same in rotation and in translation
             if (group_name == "z_lift")
-                epsilon = ACCEPTABLE_POS_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::POSITION];
             else
-                epsilon = ACCEPTABLE_ANG_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::POSITION];
                 
             for (size_t i = 0; i < vals->size(); i++)
             {
@@ -560,9 +574,9 @@ private:
         case Chain_::joint_mode_t::EFFORT:
             // acceptable error is not the same in rotation and in translation
             if (group_name=="z_lift")
-                epsilon = ACCEPTABLE_FORCE_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.linear[Chain_::joint_mode_t::EFFORT];
             else
-                epsilon = ACCEPTABLE_TORQUE_MIRROR;
+                epsilon = ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::EFFORT];
                 
             for (size_t i = 0; i < vals->size(); i++)
             {
@@ -730,7 +744,9 @@ public:
                 was_estop_(true), cb_queue_ptr(NULL), bot_shr_ptr_(NULL),
                 zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), ros_nh_ptr_(NULL), 
                 ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(NULL),
-                hw_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0)
+                hw_ptr_(NULL), cm_ptr_(NULL), accept_ang_pos_(0.0), accept_ang_vel_(0.0),
+                accept_torque_(0.0), accept_lin_pos_(0.0), accept_lin_vel_(0.0),
+                accept_force_(0.0), skip_loop_(false), loop_cnt_(0)
     {
         RegisterVersion("default", DEFAULT);
     }
@@ -825,6 +841,16 @@ protected:
 
 private:
     std::string bot_name_, zlift_name_, pwr_name_, hw_interface_mode_;
+    
+    // acceptable errors between controller output and current state
+    // to verify controllers were reset to current state
+    double accept_ang_pos_;
+    double accept_ang_vel_;
+    double accept_torque_;
+    double accept_lin_pos_;
+    double accept_lin_vel_;
+    double accept_force_;
+
     std::vector<std::string> controller_list_;
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
