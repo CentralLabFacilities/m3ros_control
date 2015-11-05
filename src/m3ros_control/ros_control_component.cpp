@@ -36,6 +36,8 @@ void RosControlComponent::Startup()
         skip_loop_ = true;
     INIT_CNT(tmp_dt_status_);
     INIT_CNT(tmp_dt_cmd_);
+    
+    SetStateOp();
 }
 
 void RosControlComponent::Shutdown()
