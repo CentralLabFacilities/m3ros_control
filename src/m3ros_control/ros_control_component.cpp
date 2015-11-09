@@ -37,7 +37,7 @@ void RosControlComponent::Startup()
     INIT_CNT(tmp_dt_status_);
     INIT_CNT(tmp_dt_cmd_);
     
-    SetStateOp();
+    SetStateSafeOp();
 }
 
 void RosControlComponent::Shutdown()
