@@ -158,8 +158,8 @@ public:
             std::vector<joint_value_> *vals = &it->second.values;
             if (it->first == "zlift")
             {
-                vals->at(0).position = zlift_shr_ptr_->GetPos();
-                vals->at(0).velocity = zlift_shr_ptr_->GetPosDot();
+                vals->at(0).position = mm2m(zlift_shr_ptr_->GetPos());
+                vals->at(0).velocity = mm2m(zlift_shr_ptr_->GetPosDot());
                 vals->at(0).effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
                 continue;
             }
@@ -243,13 +243,13 @@ public:
                     zlift_shr_ptr_->SetDesiredControlMode(
                             JOINT_MODE_THETADOT_GC);
                     if(it->second.frozen)
-                        zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).frz_cmd);
+                        zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).frz_cmd));
                     else
-                        zlift_shr_ptr_->SetDesiredPosDot(vals->at(0).pos_cmd);
+                        zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).pos_cmd));
                     break;
                 case Chain_::joint_mode_t::POSITION:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-                    zlift_shr_ptr_->SetDesiredPos(vals->at(0).pos_cmd);
+                    zlift_shr_ptr_->SetDesiredPos(m2mm(vals->at(0).pos_cmd));
                     break;
                 case Chain_::joint_mode_t::EFFORT: //not yet implemented
                     break;
@@ -425,7 +425,7 @@ private:
         {
             values.resize(ndof);
             if (name == "zlift")
-                values[0].position = 300.0;
+                values[0].position = 0.30;
             for (int i = 0; i < ndof; i++)
             {
                 values[i].name = name + "_j" + std::to_string(i);
@@ -437,7 +437,7 @@ private:
             name = getStringFromEnum(chain_ref);
             values.resize(ndof);
             if (name == "zlift")
-                values[0].position = 300.0;
+                values[0].position = 0.30;
             for (int i = 0; i < ndof; i++)
             {
                 values[i].name = name + "_j" + std::to_string(i);
