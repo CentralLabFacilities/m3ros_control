@@ -154,7 +154,17 @@ void RosControlComponent::StepStatus()
             }
         }
         // controller manager update
-        cm_ptr_->update(ros::Time::now(),period_);
+        // DO  NOT USE ros::Time::now();      
+        const uint64_t one_E9 = 1000000000ULL;
+
+        uint64_t nsec64 = rt_get_cpu_time_ns();
+
+        uint32_t sec32_part = nsec64 / one_E9;
+        uint32_t nsec32_part = nsec64 % one_E9;
+  
+        ros::Time now(sec32_part, nsec32_part);
+        
+        cm_ptr_->update(now, period_);
                 
         //SAVE_TIME(end_dt_status_);
         //PRINT_TIME(start_dt_status_,end_dt_status_,tmp_dt_status_,"status");
