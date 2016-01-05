@@ -741,12 +741,14 @@ class RosControlComponent: public m3rt::M3Component
 public:
     RosControlComponent() :
             m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), spinner_running_(false),
-                was_estop_(true), cb_queue_ptr(NULL), bot_shr_ptr_(NULL),
-                zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), ros_nh_ptr_(NULL), 
-                ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(NULL),
-                hw_ptr_(NULL), cm_ptr_(NULL), accept_ang_pos_(0.0), accept_ang_vel_(0.0),
+                was_estop_(true), cb_queue_ptr(NULL), 
+                accept_ang_pos_(0.0), accept_ang_vel_(0.0),
                 accept_torque_(0.0), accept_lin_pos_(0.0), accept_lin_vel_(0.0),
-                accept_force_(0.0), skip_loop_(false), loop_cnt_(0)
+                accept_force_(0.0),
+                bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL),
+                pwr_shr_ptr_(NULL), ros_nh_ptr_(NULL), 
+                ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(NULL),
+                hw_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0)
     {
         RegisterVersion("default", DEFAULT);
     }
