@@ -306,7 +306,8 @@ void *ros_async_spinner(void * arg)
     }
 
     rt_allow_nonroot_hrt();
-    mlockall(MCL_CURRENT | MCL_FUTURE);
+    // should not be done twice ?
+    // mlockall(MCL_CURRENT | MCL_FUTURE);
     rt_make_soft_real_time();
 
     // create a mutex for the state resource
@@ -348,7 +349,8 @@ void *rosmain_async_spinner(void * arg)
     }
 
     rt_allow_nonroot_hrt();
-    mlockall(MCL_CURRENT | MCL_FUTURE);
+    // should not be done twice ?
+    //mlockall(MCL_CURRENT | MCL_FUTURE);
     rt_make_soft_real_time();
 
     while (ros_comp_ptr->spinner_running_)
