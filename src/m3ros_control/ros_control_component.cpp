@@ -97,14 +97,14 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename)
                 (ctrl_err_node)["position"] >> accept_lin_pos_;
             }
             catch(YAML::KeyNotFound& e) {
-                accept_lin_pos_ = 1.0; //default value
+                accept_lin_pos_ = 0.01; //default value
             }
             
             try {
                 (ctrl_err_node)["velocity"] >> accept_lin_vel_;
             }
             catch(YAML::KeyNotFound& e) {
-                accept_lin_vel_ = 0.2; //default value
+                accept_lin_vel_ = 0.02; //default value
             }
             
             try {
