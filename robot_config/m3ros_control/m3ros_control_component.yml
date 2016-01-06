@@ -9,8 +9,8 @@ ctrl_acceptable_mirror_error:
     velocity: 0.05
     effort: 1.0
   linear:
-    position: 10.0
-    velocity: 2.0
+    position: 0.01
+    velocity: 0.02
     effort: 10.0
 preload_controllers:
   - joint_state_controller
