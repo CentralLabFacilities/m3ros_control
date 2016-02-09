@@ -5,17 +5,36 @@
 #include <m3/robots/humanoid.h>
 #include <m3/hardware/joint_zlift.h>
 
+// master states
+#define STATE_ESTOP     0
+#define STATE_UNKNOWN   0
+#define STATE_STANDBY   1
+#define STATE_READY     2
+#define STATE_RUNNING   3
+
+// state transitions command
+#define STATE_CMD_ESTOP     0
+#define STATE_CMD_STOP      1
+#define STATE_CMD_FREEZE    2
+#define STATE_CMD_START     3
+
+////////// Some defs
+#define mm2m(a) (mReal((a))/1000) //millimeters to meters
+#define m2mm(a) (mReal((a))*1000) //meters to millimeters
+
 using namespace std;
 using namespace controller_manager;
 using namespace hardware_interface;
 
-typedef map<Chain_::joint_mode_t, double> mirror_error_map_t;
+namespace ros_control_component {
+
+typedef map<MekaRobotHW::Chain_::joint_mode_t, double> mirror_error_map_t;
 struct ctrl_error_ {
     mirror_error_map_t linear;
     mirror_error_map_t angular;
 } ctrl_acc_mirror_error_;
 
-typedef map<string, Chain_> map_t;
+typedef std::map<string, MekaRobotHW::Chain_> map_t;
 typedef map_t::iterator map_it_t;
 
 struct MekaRobotHW::Chain_ {
@@ -93,6 +112,7 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
     assert(zlift_shr_ptr != NULL);
     bot_shr_ptr_ = bot_shr_ptr;
     zlift_shr_ptr_ = zlift_shr_ptr;
+
     Chain_::joint_mode_t mode;
     if (hw_interface_mode == "position")
         mode = Chain_::joint_mode_t::POSITION;
@@ -116,7 +136,7 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
             mode);
 
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
-        vector < joint_value_ > *vals = &it->second.values;
+        vector<joint_value_> *vals = &it->second.values;
         for (size_t i = 0; i < vals->size(); i++) {
             registerHandles(vals->at(i).name, &vals->at(i).position,
                     &vals->at(i).velocity, &vals->at(i).effort,
@@ -126,17 +146,17 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
         }
     }
 
-    registerInterface (&js_interface_);
-    registerInterface (&pj_interface_);
-    registerInterface (&ej_interface_);
-    registerInterface (&vj_interface_);
+    registerInterface(&js_interface_);
+    registerInterface(&pj_interface_);
+    registerInterface(&ej_interface_);
+    registerInterface(&vj_interface_);
 
 }
 
 void MekaRobotHW::read() {
 
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
-        vector < joint_value_ > *vals = &it->second.values;
+        vector<joint_value_> *vals = &it->second.values;
         if (it->first == "zlift") {
             vals->at(0).position = mm2m(zlift_shr_ptr_->GetPos());
             vals->at(0).velocity = mm2m(zlift_shr_ptr_->GetPosDot());
@@ -199,7 +219,7 @@ void MekaRobotHW::write() {
             it->second.joint_mode = Chain_::joint_mode_t::NOT_READY;
         }
 
-        vector < joint_value_ > *vals = &it->second.values;
+        vector<joint_value_> *vals = &it->second.values;
 
         if (it->first == "zlift") {
             zlift_shr_ptr_->SetDesiredStiffness(s_);
@@ -451,7 +471,7 @@ void MekaRobotHW::registerHandles(string name, double* pos, double* vel,
 }
 
 void MekaRobotHW::freezeJoints(string group_name) {
-    vector < joint_value_ > *vals = &chain_map_[group_name].values;
+    vector<joint_value_> *vals = &chain_map_[group_name].values;
     switch (chain_map_[group_name].joint_mode) {
     case Chain_::joint_mode_t::VELOCITY:
         // freeze means zero velocity
@@ -493,7 +513,7 @@ void MekaRobotHW::freezeJoints(string group_name) {
 
 bool MekaRobotHW::checkCtrlConvergence(string group_name) {
     converged = true;
-    vector < joint_value_ > *vals = &chain_map_[group_name].values;
+    vector<joint_value_> *vals = &chain_map_[group_name].values;
     switch (chain_map_[group_name].joint_mode) {
     case Chain_::joint_mode_t::VELOCITY:
         // acceptable error is not the same in rotation and in translation

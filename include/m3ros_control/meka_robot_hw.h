@@ -2,6 +2,8 @@
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
 
+#include <stdio.h>
+
 namespace ros_control_component {
 
 class MekaRobotHW: public hardware_interface::RobotHW {
@@ -9,6 +11,8 @@ public:
 
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode);
+
+    ~MekaRobotHW();
 
     void read();
 
