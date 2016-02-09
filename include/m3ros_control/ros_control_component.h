@@ -13,8 +13,6 @@ extern "C"
 
 ////////// M3
 #include <m3/chains/arm.h>
-#include <m3/robots/humanoid.h>
-#include <m3/hardware/joint_zlift.h>
 #include <m3/vehicles/omnibase_shm_sds.h>
 
 ////////// M3RT
@@ -32,16 +30,12 @@ extern "C"
 #include <ros/ros.h>
 #include <ros/callback_queue.h>
 #include <realtime_tools/realtime_publisher.h>
-#include <controller_manager/controller_manager.h>
+
 #include <hardware_interface/robot_hw.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
-#include <m3meka_msgs/M3ControlStateChange.h>
-#include <m3meka_msgs/M3ControlState.h>
-#include <m3meka_msgs/M3ControlStates.h>
-#include <m3meka_msgs/M3ControlStateErrorCodes.h>
 
-//#include <hardware_interface/joint_mode_interface.h>
+#include "meka_robot_hw.h"
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -96,12 +90,12 @@ public:
     ros::CallbackQueue* cb_queue_ptr; // Used to separate this node queue from the global one
 
 protected:
-    bool ReadConfig(const char* filename);
+    bool LinkDependentComponents();
     void Startup();
     void Shutdown();
+    bool ReadConfig(const char* filename);
     void StepStatus();
     void StepCommand();
-    bool LinkDependentComponents();
 
     RosControlComponentStatus status_;
     RosControlComponentCommand cmd_;
