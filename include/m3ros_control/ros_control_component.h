@@ -12,7 +12,6 @@ extern "C"
 }
 
 ////////// M3
-#include <m3/chains/arm.h>
 #include <m3/vehicles/omnibase_shm_sds.h>
 
 ////////// M3RT
@@ -35,7 +34,7 @@ extern "C"
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
 
-#include "meka_robot_hw.h"
+#include "m3ros_control/meka_robot_hw.h"
 
 ////////// Activate some timing infos
 //#define TIMING

@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   realtime_tools
   m3meka_msgs
   nav_msgs
+  tf
 )
 
 set(LIBRARIES ${LIBRARIES} ${catkin_LIBRARIES})

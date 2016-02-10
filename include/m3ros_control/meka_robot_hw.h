@@ -35,7 +35,7 @@ public:
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode);
 
-    virtual ~MekaRobotHW();
+    ~MekaRobotHW() {};
 
     void read();
 

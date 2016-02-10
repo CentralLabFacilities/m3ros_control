@@ -310,7 +310,7 @@ void* rt_system_thread(void * arg) {
     SEM * status_sem;
     SEM * command_sem;
 
-    int timeout = 5;
+    int timeout = 20;
     int cntr = 0;
     M3Sds * sds = (M3Sds *) arg;
     printf("Starting ros sds real-time thread\n");
@@ -330,10 +330,10 @@ void* rt_system_thread(void * arg) {
         return 0;
     }
 
-    while(!status_sem || timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
+    while(!status_sem && timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
         printf("Unable to find the %s semaphore. Retrying...\n", MEKA_ODOM_STATUS_SEM);
         status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
-        rt_sleep(nano2count(100000));
+        rt_sleep(nano2count(100000000));
         timeout--;
     }
 
@@ -341,6 +341,8 @@ void* rt_system_thread(void * arg) {
         printf("Unable to find the %s semaphore. Timeout reached. Exiting...\n", MEKA_ODOM_STATUS_SEM);
         rt_task_delete(task);
         return 0;
+    } else {
+	printf("Semaphore found!!");
     }
 
     command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
@@ -727,9 +729,9 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift) {
                 1000000);
 
         odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
-        cmd_sub_g = ros_nh_ptr3_->subscribe("omnibase_command", 1, stepSds);
+        cmd_sub_g = ros_nh_ptr3_->subscribe("cmd_vel", 1, stepSds);
         odom_publisher_g = ros_nh_ptr3_->advertise<nav_msgs::Odometry>(
-                "omnibase_odom", 1, true);
+                "odom", 1, true);
 
         //signal(SIGINT, end_sds_th);
 
