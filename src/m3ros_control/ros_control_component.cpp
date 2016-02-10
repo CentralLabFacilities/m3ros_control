@@ -19,6 +19,7 @@
 #define ROS_ASYNC_SP "ROSSPI"
 #define ROS_MAIN_ASYNC_SP "ROSMSP"
 
+#define MEKA_ODOM_SHM_TO 100000
 #define CYCLE_TIME_SEC 4
 #define VEL_TIMEOUT_SEC 1.0
 
@@ -132,19 +133,19 @@ void *rosmain_async_spinner(void * arg) {
 
 ////////////////////////// TIMESTAMPS /////////////////////////////
 
-void SetTimestamp(int64_t timestamp) {
+void set_timestamp(int64_t timestamp) {
     cmd.timestamp = timestamp;
     return;
 }
 
-int64_t GetTimestamp() {
+int64_t get_timestamp() {
     return status.timestamp;
 }
 
-////////////////////////// MAIN COMPUTATION METHOD /////////////////////////////
+////////////////////////// MAIN SDS DATA EXCHANGE METHODs///////////////////////
 //  integrate all this this into meka_robot_hw? or own class?
-void stepRos(int cntr, ros::Duration & rtai_to_ros_offset) {
-    SetTimestamp(GetTimestamp()); //Pass back timestamp as a heartbeat
+void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
+    set_timestamp(get_timestamp()); //Pass back timestamp as a heartbeat
 
     if (!status.calibrated) {
         printf(
@@ -159,7 +160,7 @@ void stepRos(int cntr, ros::Duration & rtai_to_ros_offset) {
     //reconstruct/guess wall time based on offsets calculated in the non-rt thread
     ros::Time rtai_now;
     rtai_to_ros_offset_mutex.lock();
-    rtai_now.fromNSec(GetTimestamp() * 1000L);
+    rtai_now.fromNSec(get_timestamp() * 1000L);
     ros::Time ros_now = rtai_now + rtai_to_ros_offset;
     rtai_to_ros_offset_mutex.unlock();
 
@@ -232,7 +233,7 @@ void stepRos(int cntr, ros::Duration & rtai_to_ros_offset) {
 
 }
 
-void stepSds(const geometry_msgs::TwistConstPtr& msg) {
+void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
     ros_to_sds_mtx.lock();
     if(ros_to_sds_) {
@@ -326,23 +327,23 @@ void* rt_system_thread(void * arg) {
     rt_allow_nonroot_hrt();
 
     if (task == NULL) {
-        printf("Failed to create RT-TASK OSHMP\n");
+        printf("Failed to create RT-TASK %s \n", MEKA_OMNIBASE_SHM);
         return 0;
     }
 
     while(!status_sem && timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
-        printf("Unable to find the %s semaphore. Retrying...\n", MEKA_ODOM_STATUS_SEM);
+        printf("Unable to find the %s semaphore. Waiting...\n", MEKA_ODOM_STATUS_SEM);
         status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
         rt_sleep(nano2count(100000000));
         timeout--;
     }
 
     if(!status_sem) {
-        printf("Unable to find the %s semaphore. Timeout reached. Exiting...\n", MEKA_ODOM_STATUS_SEM);
+        printf("Unable to find the %s semaphore. Timeout reached! Exiting...\n", MEKA_ODOM_STATUS_SEM);
         rt_task_delete(task);
         return 0;
     } else {
-	printf("Semaphore found!!");
+        printf("Semaphore found!!");
     }
 
     command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
@@ -389,7 +390,7 @@ void* rt_system_thread(void * arg) {
         //on system startup this shm timestamp is not initialized
         //if ((rtai_to_shm_offset.sec == 0) && (rtai_to_shm_offset.nsec == 0)){
         //wait until shm time has a value
-        int64_t shm_time = GetTimestamp();
+        int64_t shm_time = get_timestamp();
         if (shm_time != 0.0) {
             //fetch offset between rtai time and shm timestamp as described as offset #2 above
             int64_t rt_time = rt_get_time_ns();
@@ -405,7 +406,7 @@ void* rt_system_thread(void * arg) {
         memcpy(&status, sds->status, sds_status_size);
         rt_sem_signal(status_sem);
 
-        stepRos(cntr, rtai_to_ros_offset);
+        step_ros(cntr, rtai_to_ros_offset);
 
         rt_sem_wait(command_sem);
         memcpy(sds->cmd, &cmd, sds_cmd_size);
@@ -417,7 +418,7 @@ void* rt_system_thread(void * arg) {
             //WARNING: we are not sure if this printing is rt safe... seems to work but we do not know...
 #if 0
             printf("rt time ns = %lld ns\n", rt_get_time_ns());
-            printf("get timestamp = %ld us\n", GetTimestamp());
+            printf("get timestamp = %ld us\n", get_timestamp());
             printf("ros time on start %f s\n", ros_start_time.toSec());
             printf("rtai time on start = %f s\n", rtai_start_time.toSec());
             printf("rtai_to_shm_offset %f s\n", rtai_to_shm_offset.toSec());
@@ -463,7 +464,8 @@ RosControlComponent::RosControlComponent() :
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
         NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), ros_nh_ptr_(
         NULL), ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(
-        NULL), hw_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0) {
+        NULL), hw_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0),
+        wait_sds_(true) {
     RegisterVersion("default", DEFAULT);
 }
 
@@ -614,8 +616,17 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename) {
 
 void RosControlComponent::StepStatus() {
 
-    if (end_sds_) {
-        sys_thread_end = 1;
+    if (!sys_thread_active && wait_sds_) {
+        if(loop_cnt_ > MEKA_ODOM_SHM_TO) {
+            rt_shm_free(nam2num(MEKA_ODOM_SHM));
+            end_sds_th(0);
+            printf("Startup of SDS thread takes way too long! Failed.\n");
+            wait_sds_ = false;
+        }
+    } else {
+        if (end_sds_) {
+            sys_thread_end = 1;
+        }
     }
 
     if (!skip_loop_) {
@@ -729,7 +740,7 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift) {
                 1000000);
 
         odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
-        cmd_sub_g = ros_nh_ptr3_->subscribe("cmd_vel", 1, stepSds);
+        cmd_sub_g = ros_nh_ptr3_->subscribe("cmd_vel", 1, step_sds);
         odom_publisher_g = ros_nh_ptr3_->advertise<nav_msgs::Odometry>(
                 "odom", 1, true);
 
@@ -737,22 +748,13 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift) {
 
         rt_allow_nonroot_hrt();
         // Create a rt thread for ros omnibase control via sds
-        if (sys = ((M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds),
-                USE_VMALLOC))) {
-            m3rt::M3_INFO(
-                    "Found shared memory starting shm_omnibase_controller.\n");
+        sys = (M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds), USE_VMALLOC));
+        if (sys) {
+            m3rt::M3_INFO("Found shared memory starting shm_omnibase_controller.\n");
             rt_allow_nonroot_hrt();
             hst = rt_thread_create((void*) rt_system_thread, sys, 10000);
         } else {
             printf("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
-        }
-
-        usleep(600000); //Let start up
-        if (!sys_thread_active) {
-            //rt_task_delete(task);
-            rt_shm_free(nam2num(MEKA_ODOM_SHM));
-            end_sds_th(0);
-            printf("Startup of SDS thread failed!\n");
         }
 
         // Create the Meka Hardware interface
@@ -814,8 +816,8 @@ void RosControlComponent::RosShutdown() {
         usleep(1250000);
         if (sys_thread_active)
             m3rt::M3_ERR("Real-time thread did not shutdown correctly or was never running...\n");
-        //rt_task_delete(task);
-        rt_shm_free(nam2num(MEKA_ODOM_SHM));
+        else
+            rt_shm_free(nam2num(MEKA_ODOM_SHM));
     }
 
     srv_.shutdown();

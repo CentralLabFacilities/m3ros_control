@@ -139,6 +139,8 @@ private:
     bool skip_loop_;
     long long loop_cnt_;
 
+    bool wait_sds_;
+
 
     void PreLoadControllers();
     void UnloadControllers();
