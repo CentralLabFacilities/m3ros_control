@@ -39,7 +39,7 @@ ros::Subscriber cmd_sub_g;
 boost::shared_ptr<tf::TransformBroadcaster> odom_broadcaster_ptr;
 
 static void end_sds_th(int dummy) {
-    std::cout << "END SDS THREAD\n";
+    printf("Signal end SDS Thread\n");
     end_sds_ = 1;
 }
 
@@ -307,8 +307,10 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
  */
 void* rt_system_thread(void * arg) {
 
-    rt_allow_nonroot_hrt();
+    SEM * status_sem;
+    SEM * command_sem;
 
+    int timeout = 5;
     int cntr = 0;
     M3Sds * sds = (M3Sds *) arg;
     printf("Starting ros sds real-time thread\n");
@@ -321,19 +323,28 @@ void* rt_system_thread(void * arg) {
     RT_TASK * task = rt_task_init_schmod(nam2num(MEKA_OMNIBASE_SHM), 3, 0, 0, SCHED_FIFO,
             0xF);
 
+    rt_allow_nonroot_hrt();
+
     if (task == NULL) {
         printf("Failed to create RT-TASK OSHMP\n");
         return 0;
     }
 
-    SEM * status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
-    SEM * command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
+    while(!status_sem || timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
+        printf("Unable to find the %s semaphore. Retrying...\n", MEKA_ODOM_STATUS_SEM);
+        status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
+        rt_sleep(nano2count(100000));
+        timeout--;
+    }
 
-    if (!status_sem) {
-        printf("Unable to find the %s semaphore.\n", MEKA_ODOM_STATUS_SEM);
+    if(!status_sem) {
+        printf("Unable to find the %s semaphore. Timeout reached. Exiting...\n", MEKA_ODOM_STATUS_SEM);
         rt_task_delete(task);
         return 0;
     }
+
+    command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
+
     if (!command_sem) {
         printf("Unable to find the %s semaphore.\n", MEKA_ODOM_CMD_SEM);
         rt_task_delete(task);
@@ -720,22 +731,25 @@ bool RosControlComponent::RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift) {
         odom_publisher_g = ros_nh_ptr3_->advertise<nav_msgs::Odometry>(
                 "omnibase_odom", 1, true);
 
-        signal(SIGINT, end_sds_th);
+        //signal(SIGINT, end_sds_th);
 
+        rt_allow_nonroot_hrt();
         // Create a rt thread for ros omnibase control via sds
         if (sys = ((M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds),
                 USE_VMALLOC))) {
             m3rt::M3_INFO(
                     "Found shared memory starting shm_omnibase_controller.\n");
+            rt_allow_nonroot_hrt();
             hst = rt_thread_create((void*) rt_system_thread, sys, 10000);
         } else {
             printf("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
         }
 
-        usleep(100000); //Let start up
+        usleep(600000); //Let start up
         if (!sys_thread_active) {
             //rt_task_delete(task);
             rt_shm_free(nam2num(MEKA_ODOM_SHM));
+            end_sds_th(0);
             printf("Startup of SDS thread failed!\n");
         }
 
