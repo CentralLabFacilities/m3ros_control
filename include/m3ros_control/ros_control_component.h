@@ -11,9 +11,6 @@ extern "C"
 #include <rtai_sem.h>
 }
 
-////////// M3
-#include <m3/vehicles/omnibase_shm_sds.h>
-
 ////////// M3RT
 #include <m3rt/base/component.h>
 #include <m3rt/base/component_shm.h>
@@ -35,6 +32,7 @@ extern "C"
 #include <hardware_interface/hardware_interface.h>
 
 #include "m3ros_control/meka_robot_hw.h"
+#include "m3ros_control/omnibase_ctrl.h"
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -102,11 +100,11 @@ protected:
 
     M3BaseStatus* GetBaseStatus();
 
-    bool RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift);
+    bool RosInit();
     void RosShutdown();
 
 private:
-    std::string bot_name_, zlift_name_, pwr_name_, hw_interface_mode_;
+    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, hw_interface_mode_;
 
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
@@ -121,7 +119,8 @@ private:
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
     m3::M3Pwr* pwr_shr_ptr_;
-    M3Sds* sys; //dunno why this is not in m3 namespace..
+    m3::M3Omnibase* obase_shr_ptr_;
+    m3::M3OmnibaseShm* obase_shm_shr_ptr_;
 
     long rc,mrc,hst;
     ros::Duration period_;
@@ -131,6 +130,8 @@ private:
     realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates> *realtime_pub_ptr_;
 
     MekaRobotHW* hw_ptr_;
+    OmnibaseCtrl* obase_ptr_;
+
     controller_manager::ControllerManager* cm_ptr_;
     enum
     {

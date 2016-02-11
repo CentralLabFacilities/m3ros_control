@@ -1,3 +1,10 @@
+/*
+ * meka_robot_hw.h
+ *
+ *  Created on: Dec 18, 2016
+ *      Author: plueckin
+ */
+
 #include "m3ros_control/meka_robot_hw.h"
 
 ////////// M3
@@ -137,8 +144,7 @@ void MekaRobotHW::write() {
         if (it->first == "zlift") {
             zlift_shr_ptr_->SetDesiredStiffness(s_);
             zlift_shr_ptr_->SetSlewRate(
-                    s_
-                            * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
+                    s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
             switch (it->second.joint_mode) {
             case Chain_::joint_mode_t::VELOCITY:
                 zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);

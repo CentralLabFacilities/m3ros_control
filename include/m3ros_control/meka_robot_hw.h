@@ -1,3 +1,9 @@
+/*
+ * meka_robot_hw.cpp
+ *
+ *  Created on: Dec 18, 2016
+ *      Author: plueckin
+ */
 
 #include <m3/robots/humanoid.h>
 #include <m3/hardware/joint_zlift.h>
@@ -35,7 +41,7 @@ public:
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode);
 
-    ~MekaRobotHW() {};
+    virtual ~MekaRobotHW() {};
 
     void read();
 

@@ -102,7 +102,7 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}
 
 
 ## Declare a cpp executable
-add_library(${PROJECT_NAME} ros_control_component.cpp meka_robot_hw.cpp factory_proxy.cpp ros_control_component.pb.cc)
+add_library(${PROJECT_NAME} ros_control_component.cpp meka_robot_hw.cpp omnibase_ctrl.cpp factory_proxy.cpp ros_control_component.pb.cc)
 add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
