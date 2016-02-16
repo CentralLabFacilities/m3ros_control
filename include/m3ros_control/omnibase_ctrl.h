@@ -10,6 +10,8 @@
 #include <m3/vehicles/omnibase_shm.h>
 #include <m3/vehicles/omnibase_shm_sds.h>
 
+#include <ros/ros.h>
+
 #ifndef M3ROS_CONTROL_OMNIBASE_CTRL_H_
 #define M3ROS_CONTROL_OMNIBASE_CTRL_H_
 
@@ -23,9 +25,9 @@ public:
 		SHR  //shared pointer
 	};
 
-	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, std::string nodename, BASE_CTRL_MODE mode);
+	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = SDS);
 
-	~OmnibaseCtrl() {};
+	~OmnibaseCtrl();
 
 	bool is_sds_active();
 	void enable_ros2sds();
@@ -39,6 +41,7 @@ private:
 
 	m3::M3Omnibase* obase_shr_ptr_;
 	m3::M3OmnibaseShm* obase_shm_shr_ptr_;
+	m3::M3JointArray* obase_ja_shr_ptr_;
     M3Sds* sys; //dunno why this is not in m3 namespace..
 
     std::string node_name;

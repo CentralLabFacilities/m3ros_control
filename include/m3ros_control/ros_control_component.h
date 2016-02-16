@@ -104,7 +104,7 @@ protected:
     void RosShutdown();
 
 private:
-    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, hw_interface_mode_;
+    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, hw_interface_mode_;
 
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
@@ -121,10 +121,11 @@ private:
     m3::M3Pwr* pwr_shr_ptr_;
     m3::M3Omnibase* obase_shr_ptr_;
     m3::M3OmnibaseShm* obase_shm_shr_ptr_;
+    m3::M3JointArray* obase_ja_shr_ptr_;
 
-    long rc,mrc,hst;
+    long rc,mrc;
     ros::Duration period_;
-    ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_, *ros_nh_ptr3_;
+    ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_;
     ros::ServiceServer srv_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
     realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates> *realtime_pub_ptr_;

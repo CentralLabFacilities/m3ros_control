@@ -4,6 +4,7 @@ zlift: m3joint_mz7_j0
 pwr_component: m3pwr_pwr038
 omnibase: m3omnibase_mb7
 omnibase_shm: m3omnibase_shm_mb7
+omnibase_jointarray: m3joint_array_mb7
 hw_interface_mode: position #effort
 ctrl_acceptable_mirror_error:
   angular:
