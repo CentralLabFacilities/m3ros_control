@@ -305,6 +305,7 @@ void RosControlComponent::StepStatus() {
 		if (!pwr_shr_ptr_->IsMotorPowerOn()) {
 			rt_sem_wait(state_mutex_);
 			hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
+			obase_ptr_->changeState(STATE_CMD_ESTOP);
 			rt_sem_signal(state_mutex_);
 			was_estop_ = true;
 		} else {        //automatic recover to stop after estop
@@ -312,6 +313,7 @@ void RosControlComponent::StepStatus() {
 				was_estop_ = false;
 				rt_sem_wait(state_mutex_);
 				hw_ptr_->changeStateAll(STATE_CMD_STOP);
+				obase_ptr_->changeState(STATE_CMD_STOP);
 				rt_sem_signal(state_mutex_);
 			}
 		}
@@ -353,6 +355,7 @@ void RosControlComponent::StepCommand() {
 		if (loop_cnt_ % 100 == 0) {
 			if (realtime_pub_ptr_->trylock()) {
 				hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+				obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
 				realtime_pub_ptr_->unlockAndPublish();
 			}
 		}
@@ -421,8 +424,8 @@ bool RosControlComponent::RosInit() {
 		// Create a realtime publisher for the state
 		realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<
 				m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
-		realtime_pub_ptr_->msg_.group_name.resize(hw_ptr_->getNbGroup());
-		realtime_pub_ptr_->msg_.state.resize(hw_ptr_->getNbGroup());
+		realtime_pub_ptr_->msg_.group_name.resize(hw_ptr_->getNbGroup()+1); //+1 for base
+		realtime_pub_ptr_->msg_.state.resize(hw_ptr_->getNbGroup()+1);
 
 		// Create the controller manager
 		cm_ptr_ = new controller_manager::ControllerManager(hw_ptr_,
@@ -501,26 +504,9 @@ bool RosControlComponent::changeStateCallback(
 				int ret_tmp = 0;
 				//special handling of base for now...
 				if (req.command.group_name[i] == "base") {
-					if (!obase_ptr_->is_sds_active()) { //base sds thread is not active anyways..
-						ret_tmp = -3;
-					} else {
-						int state_cmd = req.command.state[i];
-						switch (state_cmd) {
-						case STATE_CMD_ESTOP:
-							obase_ptr_->disable_ros2sds();
-							break;
-						case STATE_CMD_FREEZE:
-							obase_ptr_->disable_ros2sds();
-							break;
-						case STATE_CMD_STOP:
-							obase_ptr_->disable_ros2sds();
-							break;
-						case STATE_CMD_START:
-							obase_ptr_->enable_ros2sds();
-							break;
-						}
-					}
-
+				    rt_sem_wait(this->state_mutex_);
+                    ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+                    rt_sem_signal(this->state_mutex_);
 				} else {
 					// during change, no other function must use the ctrl_state.
 					rt_sem_wait(this->state_mutex_);
@@ -540,7 +526,6 @@ bool RosControlComponent::changeStateCallback(
 		} else {
 			ret = -3;
 		}
-
 		if (ret < 0) {
 			if (ret == -2)
 				res.error_code.val =

@@ -53,6 +53,19 @@ std::mutex rtai_to_ros_offset_mutex;
 std::mutex rtai_to_shm_offset_mutex;
 std::mutex ros_to_sds_mtx;
 
+// master states
+#define STATE_ESTOP     0
+#define STATE_UNKNOWN   0
+#define STATE_STANDBY   1
+#define STATE_READY     2
+#define STATE_RUNNING   3
+
+// state transitions command
+#define STATE_CMD_ESTOP     0
+#define STATE_CMD_STOP      1
+#define STATE_CMD_FREEZE    2
+#define STATE_CMD_START     3
+
 using namespace std;
 
 namespace ros_control_component {
@@ -419,8 +432,8 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		m3::M3OmnibaseShm* obase_shm_shr_ptr,
 		m3::M3JointArray* obase_ja_shr_ptr, std::string nodename,
 		BASE_CTRL_MODE mode) :
-		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), node_name(
-				nodename), hst(-1), ctrl_mode(mode) {
+		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
+		name("base"), node_name(nodename), ctrl_state(0), hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
 	assert(obase_shm_shr_ptr != NULL);
@@ -527,6 +540,64 @@ void OmnibaseCtrl::init_sds() {
 		m3rt::M3_ERR("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
 	}
 
+}
+
+void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
+    //always last element. change when integrate omnibasectrl in mekarobothw
+    msg.group_name.back() = name;
+    msg.state.back() = ctrl_state;
+}
+
+int OmnibaseCtrl::changeState(const int state_cmd) {
+    int ret = 0;
+    if (!is_sds_active()) { //base sds thread is not active anyways..
+        ret = -3;
+    } else {
+        switch (state_cmd) {
+            case STATE_CMD_ESTOP:
+                disable_ros2sds();
+                if (ctrl_state == STATE_RUNNING) {
+                    m3rt::M3_INFO("%s: You should switch controllers off !\n", name);
+                }
+                if (ctrl_state != STATE_ESTOP) {
+                    m3rt::M3_INFO("%s: ESTOP detected\n", name);
+                }
+                ctrl_state = STATE_ESTOP;
+                break;
+            case STATE_CMD_STOP:
+                disable_ros2sds();
+                if (ctrl_state == STATE_ESTOP)
+                    ret = -3;
+                else {
+                    ctrl_state = STATE_STANDBY;
+                    m3rt::M3_INFO("%s: in standby state\n ", name);
+                }
+                break;
+            case STATE_CMD_FREEZE: //no freeze for base.
+                disable_ros2sds();
+                if (ctrl_state == STATE_ESTOP)
+                    ret = -3;
+                else {
+                    ctrl_state = STATE_STANDBY;
+                    m3rt::M3_INFO("%s: in standby state\n ", name);
+                }
+                break;
+            case STATE_CMD_START:
+                if (ctrl_state != STATE_RUNNING) {
+                    // cannot go to run if previously in e-stop
+                    // go to standby first
+                    if (ctrl_state == STATE_ESTOP) {
+                        ret = -3;
+                        break;
+                    }
+                    enable_ros2sds();
+                    ctrl_state = STATE_RUNNING;
+                    m3rt::M3_INFO("%s: putting in running state\n ", name);
+                    break;
+                }
+        }
+    }
+    return ret;
 }
 
 }
