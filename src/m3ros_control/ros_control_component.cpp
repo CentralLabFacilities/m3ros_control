@@ -505,6 +505,7 @@ bool RosControlComponent::changeStateCallback(
 				//special handling of base for now...
 				if (req.command.group_name[i] == "base") {
 				    rt_sem_wait(this->state_mutex_);
+				    M3_INFO("Calling base changestate!");
                     ret_tmp = obase_ptr_->changeState(req.command.state[i]);
                     rt_sem_signal(this->state_mutex_);
 				} else {

@@ -336,7 +336,6 @@ void* rt_system_thread(void * arg) {
 	ros::Duration rtai_to_shm_offset;
 	std::thread t1(update_rtai_to_ros_offset, std::ref(rtai_to_ros_offset),
 			std::ref(rtai_to_shm_offset));
-
 	rt_task_make_periodic(task, now + tick_period, tick_period);
 	mlockall(MCL_CURRENT | MCL_FUTURE);
 	rt_make_hard_real_time();
@@ -404,6 +403,7 @@ void* rt_system_thread(void * arg) {
 		}
 		rt_task_wait_period();
 	}
+	t1.join();
 	printf("Exiting RealTime Thread...\n");
 	rt_make_soft_real_time();
 	rt_task_delete(task);
@@ -453,7 +453,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 	 }*/
 
 	if (calib) {
-		m3rt::M3_INFO("Omnibase calibrated, initializing ...\n");
+		m3rt::M3_INFO("%s: Omnibase calibrated, initializing control..\n", name.c_str());
 		switch (ctrl_mode) {
 		case (SDS):
 			init_sds();
@@ -462,8 +462,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 			break;
 		}
 	} else {
-		m3rt::M3_INFO(
-				"Omnibase is not calibrated. To use the omnibase, calibrate it.\n");
+		m3rt::M3_INFO("%s: Omnibase is not calibrated, exiting!\n", name.c_str());
 	}
 
 }
@@ -487,13 +486,19 @@ bool OmnibaseCtrl::is_sds_active() {
 
 void OmnibaseCtrl::enable_ros2sds() {
 	ros_to_sds_mtx.lock();
-	ros_to_sds_ = 1;
+	if(!ros_to_sds_) {
+		m3rt::M3_INFO("%s: Enabling ROS2SDS!\n", name.c_str());
+		ros_to_sds_ = 1;
+	}
 	ros_to_sds_mtx.unlock();
 }
 
 void OmnibaseCtrl::disable_ros2sds() {
 	ros_to_sds_mtx.lock();
-	ros_to_sds_ = 0;
+	if(ros_to_sds_) {
+		m3rt::M3_INFO("%s: Disabling ROS2SDS!\n", name.c_str());
+		ros_to_sds_ = 0;
+	}
 	ros_to_sds_mtx.unlock();
 }
 
@@ -544,42 +549,43 @@ void OmnibaseCtrl::init_sds() {
 
 void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
     //always last element. change when integrate omnibasectrl in mekarobothw
-    msg.group_name.back() = name;
+	msg.group_name.back() = name;
     msg.state.back() = ctrl_state;
 }
 
 int OmnibaseCtrl::changeState(const int state_cmd) {
-    int ret = 0;
+	int ret = 0;
     if (!is_sds_active()) { //base sds thread is not active anyways..
-        ret = -3;
+    	//m3rt::M3_INFO("%s: SDS is not active!\n", name.c_str());
+    	ret = -3;
     } else {
         switch (state_cmd) {
             case STATE_CMD_ESTOP:
-                disable_ros2sds();
                 if (ctrl_state == STATE_RUNNING) {
-                    m3rt::M3_INFO("%s: You should switch controllers off !\n", name);
+					disable_ros2sds();
+                    m3rt::M3_INFO("%s: You should switch controllers off !\n", name.c_str());
                 }
                 if (ctrl_state != STATE_ESTOP) {
-                    m3rt::M3_INFO("%s: ESTOP detected\n", name);
+                    m3rt::M3_INFO("%s: ESTOP detected\n", name.c_str());
                 }
                 ctrl_state = STATE_ESTOP;
                 break;
             case STATE_CMD_STOP:
-                disable_ros2sds();
                 if (ctrl_state == STATE_ESTOP)
                     ret = -3;
                 else {
+					disable_ros2sds();
                     ctrl_state = STATE_STANDBY;
-                    m3rt::M3_INFO("%s: in standby state\n ", name);
+                    m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
                 }
                 break;
             case STATE_CMD_FREEZE: //no freeze for base.
-                disable_ros2sds();
                 if (ctrl_state == STATE_ESTOP)
                     ret = -3;
                 else {
+                	disable_ros2sds();
                     ctrl_state = STATE_STANDBY;
-                    m3rt::M3_INFO("%s: in standby state\n ", name);
+                    m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
                 }
                 break;
             case STATE_CMD_START:
@@ -592,7 +598,7 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
                     }
                     enable_ros2sds();
                     ctrl_state = STATE_RUNNING;
-                    m3rt::M3_INFO("%s: putting in running state\n ", name);
+                    m3rt::M3_INFO("%s: putting in running state\n ", name.c_str());
                     break;
                 }
         }
