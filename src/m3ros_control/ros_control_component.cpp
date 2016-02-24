@@ -305,7 +305,9 @@ void RosControlComponent::StepStatus() {
 		if (!pwr_shr_ptr_->IsMotorPowerOn()) {
 			rt_sem_wait(state_mutex_);
 			hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
-			obase_ptr_->changeState(STATE_CMD_ESTOP);
+			if(obase_ptr_->is_running()) {
+                obase_ptr_->changeState(STATE_CMD_ESTOP);
+			}
 			rt_sem_signal(state_mutex_);
 			was_estop_ = true;
 		} else {        //automatic recover to stop after estop
@@ -313,10 +315,17 @@ void RosControlComponent::StepStatus() {
 				was_estop_ = false;
 				rt_sem_wait(state_mutex_);
 				hw_ptr_->changeStateAll(STATE_CMD_STOP);
-				obase_ptr_->changeState(STATE_CMD_STOP);
+				if(obase_ptr_->is_running()) {
+				    obase_ptr_->changeState(STATE_CMD_STOP);
+                }
 				rt_sem_signal(state_mutex_);
 			}
 		}
+		//check whether obase rt thread is still running
+		if(obase_ptr_->is_running() && obase_ptr_->is_sds_ended()) {
+		    obase_ptr_->shutdown();
+		}
+
 		// controller manager update
 		// DO  NOT USE ros::Time::now();
 		const uint64_t one_E9 = 1000000000ULL;
@@ -468,7 +477,7 @@ void RosControlComponent::RosShutdown() {
 		mrc = -1;
 	}
 
-	if (obase_ptr_) {
+	if (obase_ptr_ && obase_ptr_->is_running()) {
 		m3rt::M3_INFO("Shutting down omnibase control...\n");
 		obase_ptr_->shutdown();
 	}
@@ -505,7 +514,6 @@ bool RosControlComponent::changeStateCallback(
 				//special handling of base for now...
 				if (req.command.group_name[i] == "base") {
 				    rt_sem_wait(this->state_mutex_);
-				    M3_INFO("Calling base changestate!");
                     ret_tmp = obase_ptr_->changeState(req.command.state[i]);
                     rt_sem_signal(this->state_mutex_);
 				} else {

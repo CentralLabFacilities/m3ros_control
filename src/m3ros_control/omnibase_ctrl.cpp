@@ -85,8 +85,6 @@ int64_t get_timestamp() {
 //  integrate all this this into meka_robot_hw? or own class?
 void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 
-	set_timestamp(get_timestamp()); //Pass back timestamp as a heartbeat
-
 	if (!status.calibrated) {
 		printf("Omnibase is not calibrated. Please calibrate and run again.  Omnibase control exiting.\n");
 		sys_thread_end = 1;
@@ -95,6 +93,10 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 		ros_to_sds_mtx.unlock();
 		return;
 	}
+
+	if (ros_to_sds_) {
+        set_timestamp(get_timestamp()); //Pass back timestamp as a heartbeat
+    }
 
 	if (rtai_to_ros_offset.toSec() == 0.0) {
 		//printf("Time not in sync yet. Waiting to publish for next call.\n");
@@ -181,14 +183,18 @@ void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
 	ros_to_sds_mtx.lock();
 	if (ros_to_sds_) {
-		//put the movements by ros into the cmd struct of the meka
-		cmd.x_velocity = msg->linear.x;
-		cmd.y_velocity = msg->linear.y;
-		cmd.yaw_velocity = msg->angular.z;
+	    printf("x: %f\n", msg->linear.x); //TODO: this is for testing..
+        printf("y: %f\n", msg->linear.y);
+        printf("a: %f\n", msg->angular.z);
 
-		printf("x: %f\n", cmd.x_velocity);
-		printf("y: %f\n", cmd.y_velocity);
-		printf("a: %f\n", cmd.yaw_velocity);
+	    //put the movements by ros into the cmd struct of the meka
+		//cmd.x_velocity = msg->linear.x;
+		//cmd.y_velocity = msg->linear.y;
+		//cmd.yaw_velocity = msg->angular.z;
+
+		//printf("x: %f\n", cmd.x_velocity);
+		//printf("y: %f\n", cmd.y_velocity);
+		//printf("a: %f\n", cmd.yaw_velocity);
 
 		last_cmd_ts = status.timestamp; //if the offset between actual time and this timestamp gets high enough, the base is turned off. see M3OmnibaseShm
 	}
@@ -433,7 +439,8 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		m3::M3JointArray* obase_ja_shr_ptr, std::string nodename,
 		BASE_CTRL_MODE mode) :
 		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
-		name("base"), node_name(nodename), ctrl_state(0), hst(-1), ctrl_mode(mode) {
+		running(false), name("base"), node_name(nodename), ctrl_state(0),
+		hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
 	assert(obase_shm_shr_ptr != NULL);
@@ -476,6 +483,18 @@ OmnibaseCtrl::~OmnibaseCtrl() {
 		delete ros_nh_ptr_;
 }
 
+bool OmnibaseCtrl::is_running() {
+    return running;
+}
+
+bool OmnibaseCtrl::is_sds_ended() {
+    if (sys_thread_end) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool OmnibaseCtrl::is_sds_active() {
 	if (sys_thread_active) {
 		return true;
@@ -512,9 +531,9 @@ void OmnibaseCtrl::shutdown() {
 		else {
 			rt_thread_join(hst);
 			hst = 0;
-			rt_shm_free(nam2num(MEKA_ODOM_SHM));
 			m3rt::M3_INFO("Success in removing RT thread!\n");
 		}
+        rt_shm_free(nam2num(MEKA_ODOM_SHM));
 	}
 }
 
@@ -541,6 +560,7 @@ void OmnibaseCtrl::init_sds() {
 				"Found shared memory starting omnibase control via shared data service.\n");
 		rt_allow_nonroot_hrt();
 		hst = rt_thread_create((void*) rt_system_thread, sys, 10000);
+		running = true;
 	} else {
 		m3rt::M3_ERR("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
 	}

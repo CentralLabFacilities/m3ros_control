@@ -43,6 +43,8 @@ protected:
 
 private:
 
+	bool is_running();
+	bool is_sds_ended();
 	bool is_sds_active();
     void enable_ros2sds();
     void disable_ros2sds();
@@ -52,6 +54,7 @@ private:
 	m3::M3JointArray* obase_ja_shr_ptr_;
     M3Sds* sys; //dunno why this is not in m3 namespace..
 
+    bool running;
     std::string name, node_name;
     int ctrl_state;
     long hst;
