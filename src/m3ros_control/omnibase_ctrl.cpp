@@ -183,14 +183,14 @@ void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
 	ros_to_sds_mtx.lock();
 	if (ros_to_sds_) {
-	    printf("x: %f\n", msg->linear.x); //TODO: this is for testing..
-        printf("y: %f\n", msg->linear.y);
-        printf("a: %f\n", msg->angular.z);
+	    //printf("x: %f\n", msg->linear.x); //TODO: this is for testing..
+        //printf("y: %f\n", msg->linear.y);
+        //printf("a: %f\n", msg->angular.z);
 
 	    //put the movements by ros into the cmd struct of the meka
-		//cmd.x_velocity = msg->linear.x;
-		//cmd.y_velocity = msg->linear.y;
-		//cmd.yaw_velocity = msg->angular.z;
+		cmd.x_velocity = msg->linear.x;
+		cmd.y_velocity = msg->linear.y;
+		cmd.yaw_velocity = msg->angular.z;
 
 		//printf("x: %f\n", cmd.x_velocity);
 		//printf("y: %f\n", cmd.y_velocity);
@@ -258,13 +258,16 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
  */
 void* rt_system_thread(void * arg) {
 
+	rt_printk("Starting up rt systems thread in 5 sec..");
+	rt_sleep(nano2count(5000000000));
+
 	SEM * status_sem;
 	SEM * command_sem;
 
 	int timeout = 20;
 	int cntr = 0;
 	M3Sds * sds = (M3Sds *) arg;
-	printf("Starting ros sds real-time thread\n");
+	rt_printk("Starting ros sds real-time thread\n");
 
 	sds_status_size = sizeof(M3OmnibaseShmSdsStatus);
 	sds_cmd_size = sizeof(M3OmnibaseShmSdsCommand);
@@ -277,12 +280,12 @@ void* rt_system_thread(void * arg) {
 	rt_allow_nonroot_hrt();
 
 	if (task == NULL) {
-		printf("Failed to create RT-TASK %s \n", MEKA_OMNIBASE_SHM);
+		rt_printk("Failed to create RT-TASK %s \n", MEKA_OMNIBASE_SHM);
 		return 0;
 	}
 
 	while (!status_sem && timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
-		printf("Unable to find the %s semaphore. Waiting...\n",
+		rt_printk("Unable to find the %s semaphore. Waiting...\n",
 				MEKA_ODOM_STATUS_SEM);
 		status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
 		rt_sleep(nano2count(100000000));
@@ -290,12 +293,12 @@ void* rt_system_thread(void * arg) {
 	}
 
 	if (!status_sem) {
-		printf("Unable to find the %s semaphore. Timeout reached! Exiting...\n",
+		rt_printk("Unable to find the %s semaphore. Timeout reached! Exiting...\n",
 				MEKA_ODOM_STATUS_SEM);
 		rt_task_delete(task);
 		return 0;
 	} else {
-		printf("Semaphore found! Now waiting for RT system to start up and fill the status..");
+		rt_printk("Semaphore found! Now waiting for RT system to start up and fill the status..");
 		bool running = false;
 		while(!running) {
 			rt_sem_wait(status_sem);
@@ -304,7 +307,7 @@ void* rt_system_thread(void * arg) {
 			if (!status.timestamp) {
 				rt_sleep(nano2count(100000000));
 			} else {
-				printf("Timestamp found, continuing starting of omnibase ctrl RT thread...");
+				rt_printk("Timestamp found, continuing starting of omnibase ctrl RT thread...");
 				running = true;
 			}
 		}
@@ -313,7 +316,7 @@ void* rt_system_thread(void * arg) {
 	command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
 
 	if (!command_sem) {
-		printf("Unable to find the %s semaphore.\n", MEKA_ODOM_CMD_SEM);
+		rt_printk("Unable to find the %s semaphore.\n", MEKA_ODOM_CMD_SEM);
 		rt_task_delete(task);
 		return 0;
 	}
@@ -396,8 +399,8 @@ void* rt_system_thread(void * arg) {
 		 up the CPU.*/
 		if (dt > tick_period && step_cnt > 10) {
 			//WARNING: we are not sure if this printing is rt safe... seems to work but we do not know...
-			printf("Step %lld: Computation time of components is too long..\n", step_cnt);
-			printf("Previous period: %f. New period: %f\n",
+			rt_printk("Step %lld: Computation time of components is too long..\n", step_cnt);
+			rt_printk("Previous period: %f. New period: %f\n",
 					(double) count2nano(tick_period), (double) count2nano(dt));
 
 			tick_period = dt;
@@ -410,7 +413,7 @@ void* rt_system_thread(void * arg) {
 		rt_task_wait_period();
 	}
 	t1.join();
-	printf("Exiting RealTime Thread...\n");
+	rt_printk("Exiting RealTime Thread...\n");
 	rt_make_soft_real_time();
 	rt_task_delete(task);
 	sys_thread_active = 0;
@@ -484,7 +487,11 @@ OmnibaseCtrl::~OmnibaseCtrl() {
 }
 
 bool OmnibaseCtrl::is_running() {
-    return running;
+	if (running) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 bool OmnibaseCtrl::is_sds_ended() {
@@ -591,13 +598,11 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
                 ctrl_state = STATE_ESTOP;
                 break;
             case STATE_CMD_STOP:
-                if (ctrl_state == STATE_ESTOP)
-                    ret = -3;
-                else {
-					disable_ros2sds();
-                    ctrl_state = STATE_STANDBY;
-                    m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
-                }
+            	if (ctrl_state == STATE_RUNNING) {
+            		disable_ros2sds();
+            	}
+            	ctrl_state = STATE_STANDBY;
+                m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
                 break;
             case STATE_CMD_FREEZE: //no freeze for base.
                 if (ctrl_state == STATE_ESTOP)

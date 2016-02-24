@@ -38,13 +38,13 @@ public:
 
 	void getPublishableState(m3meka_msgs::M3ControlStates &msg);
 
+	bool is_running();
+	bool is_sds_ended();
 
 protected:
 
 private:
 
-	bool is_running();
-	bool is_sds_ended();
 	bool is_sds_active();
     void enable_ros2sds();
     void disable_ros2sds();
