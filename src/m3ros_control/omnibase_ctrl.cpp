@@ -7,6 +7,7 @@
 
 #include "m3ros_control/omnibase_ctrl.h"
 
+#include <atomic>
 #include <mutex>
 #include <thread>
 #include <stdio.h>
@@ -21,25 +22,19 @@
 #define RT_TASK_FREQUENCY_MEKA_OMNI_SHM 100
 #define RT_TIMER_TICKS_NS_MEKA_OMNI_SHM (1000000000 / RT_TASK_FREQUENCY_MEKA_OMNI_SHM)      //Period of rt-timer
 
-#define MEKA_ODOM_SHM "OSHMM"
-#define MEKA_ODOM_CMD_SEM "OSHMC"
-#define MEKA_ODOM_STATUS_SEM "OSHMS"
-#define MEKA_OMNIBASE_SHM "OSHMP"
+const char *MEKA_ODOM_SHM = "OSHMM";
+const char *MEKA_ODOM_CMD_SEM = "OSHMC";
+const char *MEKA_ODOM_STATUS_SEM = "OSHMS";
+const char *MEKA_OMNIBASE_SHM = "OSHMP";
 
-#define MEKA_ODOM_SHM_TO 100000
-#define CYCLE_TIME_SEC 4
-#define VEL_TIMEOUT_SEC 1.0
+const int MEKA_ODOM_SHM_TO = 100000;
+const int CYCLE_TIME_SEC = 4;
+const float VEL_TIMEOUT_SEC = 1.0;
 
-#define MEKA_ODOM_SHM_TO 100000
-#define CYCLE_TIME_SEC 4
-#define VEL_TIMEOUT_SEC 1.0
+std::atomic<bool> ros_to_sds_ = false;
+std::atomic<bool> sys_thread_active = false;
+std::atomic<bool> sys_thread_end = false;
 
-// make shared global volatile ?
-static int ros_to_sds_ = 0;
-static int sys_thread_active = 0;
-static int sys_thread_end = 0;
-static int sds_status_size;
-static int sds_cmd_size;
 static M3OmnibaseShmSdsCommand cmd;
 static M3OmnibaseShmSdsStatus status;
 static int64_t last_cmd_ts;
@@ -51,7 +46,6 @@ boost::shared_ptr<tf::TransformBroadcaster> odom_broadcaster_ptr;
 
 std::mutex rtai_to_ros_offset_mutex;
 std::mutex rtai_to_shm_offset_mutex;
-std::mutex ros_to_sds_mtx;
 
 // master states
 #define STATE_ESTOP     0
@@ -87,14 +81,12 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 
 	if (!status.calibrated) {
 		printf("Omnibase is not calibrated. Please calibrate and run again.  Omnibase control exiting.\n");
-		sys_thread_end = 1;
-		ros_to_sds_mtx.lock();
-		ros_to_sds_ = 0;
-		ros_to_sds_mtx.unlock();
+		sys_thread_end = true;
+		ros_to_sds_ = false;
 		return;
 	}
 
-	if (ros_to_sds_) {
+	if (ros_to_sds_.load()) {
         set_timestamp(get_timestamp()); //Pass back timestamp as a heartbeat
     }
 
@@ -181,8 +173,7 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 
 void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
-	ros_to_sds_mtx.lock();
-	if (ros_to_sds_) {
+	if (ros_to_sds_.load()) {
 	    //printf("x: %f\n", msg->linear.x); //TODO: this is for testing..
         //printf("y: %f\n", msg->linear.y);
         //printf("a: %f\n", msg->angular.z);
@@ -198,7 +189,6 @@ void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
 		last_cmd_ts = status.timestamp; //if the offset between actual time and this timestamp gets high enough, the base is turned off. see M3OmnibaseShm
 	}
-	ros_to_sds_mtx.unlock();
 }
 
 /**
@@ -258,9 +248,6 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
  */
 void* rt_system_thread(void * arg) {
 
-	rt_printk("Starting up rt systems thread in 5 sec..");
-	rt_sleep(nano2count(5000000000));
-
 	SEM * status_sem;
 	SEM * command_sem;
 
@@ -269,8 +256,8 @@ void* rt_system_thread(void * arg) {
 	M3Sds * sds = (M3Sds *) arg;
 	rt_printk("Starting ros sds real-time thread\n");
 
-	sds_status_size = sizeof(M3OmnibaseShmSdsStatus);
-	sds_cmd_size = sizeof(M3OmnibaseShmSdsCommand);
+	const int sds_status_size = sizeof(M3OmnibaseShmSdsStatus);
+	const int sds_cmd_size = sizeof(M3OmnibaseShmSdsCommand);
 
 	memset(&cmd, 0, sds_cmd_size);
 
@@ -350,9 +337,9 @@ void* rt_system_thread(void * arg) {
 	rt_make_hard_real_time();
 	long long start_time, end_time, dt;
 	long long step_cnt = 0;
-	sys_thread_active = 1;
+	sys_thread_active = true;
 
-	while (!sys_thread_end) {
+	while (!sys_thread_end.load()) {
 		//on system startup this shm timestamp is not initialized
 		//if ((rtai_to_shm_offset.sec == 0) && (rtai_to_shm_offset.nsec == 0)){
 		//wait until shm time has a value
@@ -416,33 +403,19 @@ void* rt_system_thread(void * arg) {
 	rt_printk("Exiting RealTime Thread...\n");
 	rt_make_soft_real_time();
 	rt_task_delete(task);
-	sys_thread_active = 0;
+	sys_thread_active = false;
 	return static_cast<void *>(0);
 }
 
 /////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
 
-//step() {
-//    if (!sys_thread_active && wait_sds_) {
-//        if(loop_cnt_ > MEKA_ODOM_SHM_TO) {
-//            rt_shm_free(nam2num(MEKA_ODOM_SHM));
-//            end_sds_th(0);
-//            printf("Startup of SDS thread takes way too long! Failed.\n");
-//            wait_sds_ = false;
-//        }
-//    } else {
-//        if (end_sds_) {
-//            sys_thread_end = 1;
-//        }
-//    }
-//}
 
 OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		m3::M3OmnibaseShm* obase_shm_shr_ptr,
 		m3::M3JointArray* obase_ja_shr_ptr, std::string nodename,
 		BASE_CTRL_MODE mode) :
 		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
-		running(false), name("base"), node_name(nodename), ctrl_state(0),
+		running(false), name("base"), node_name(nodename), ctrl_state(STATE_ESTOP),
 		hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
@@ -453,27 +426,14 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 	obase_shm_shr_ptr_ = obase_shm_shr_ptr;
 	obase_ja_shr_ptr_ = obase_ja_shr_ptr;
 
-	bool calib = true;
-	/*printf("BLA %i",
-			((M3OmnibaseStatus*) obase_shr_ptr_->GetStatus())->calibrated_size());*/
-	/*for ( int i=0; i<obase_ja_shr_ptr_->GetNumDof()/2; i++ ) {
-	 if (! bool ( status->calibrated ( i ) )) {
-	 calib = false;
-	 }
-	 }*/
-
-	if (calib) {
-		m3rt::M3_INFO("%s: Omnibase calibrated, initializing control..\n", name.c_str());
-		switch (ctrl_mode) {
-		case (SDS):
-			init_sds();
-			break;
-		case (SHR):	//todo
-			break;
-		}
-	} else {
-		m3rt::M3_INFO("%s: Omnibase is not calibrated, exiting!\n", name.c_str());
-	}
+    m3rt::M3_INFO("%s: Initializing dispatch thread..\n", name.c_str());
+    switch (ctrl_mode) {
+    case (SDS):
+            detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
+        break;
+    case (SHR):	//todo
+        break;
+    }
 
 }
 
@@ -484,6 +444,14 @@ OmnibaseCtrl::~OmnibaseCtrl() {
 		delete sys;
 	if (ros_nh_ptr_ != NULL)
 		delete ros_nh_ptr_;
+
+	switch (ctrl_mode) {
+    case (SDS):
+            detach_sds_th_.join();
+        break;
+    case (SHR): //todo
+        break;
+	}
 }
 
 bool OmnibaseCtrl::is_running() {
@@ -495,7 +463,7 @@ bool OmnibaseCtrl::is_running() {
 }
 
 bool OmnibaseCtrl::is_sds_ended() {
-    if (sys_thread_end) {
+    if (sys_thread_end.load()) {
         return true;
     } else {
         return false;
@@ -503,7 +471,7 @@ bool OmnibaseCtrl::is_sds_ended() {
 }
 
 bool OmnibaseCtrl::is_sds_active() {
-	if (sys_thread_active) {
+	if (sys_thread_active.load()) {
 		return true;
 	} else {
 		return false;
@@ -511,29 +479,27 @@ bool OmnibaseCtrl::is_sds_active() {
 }
 
 void OmnibaseCtrl::enable_ros2sds() {
-	ros_to_sds_mtx.lock();
-	if(!ros_to_sds_) {
+	if(!ros_to_sds_.load()) {
 		m3rt::M3_INFO("%s: Enabling ROS2SDS!\n", name.c_str());
-		ros_to_sds_ = 1;
+		ros_to_sds_ = true;
 	}
-	ros_to_sds_mtx.unlock();
 }
 
 void OmnibaseCtrl::disable_ros2sds() {
-	ros_to_sds_mtx.lock();
-	if(ros_to_sds_) {
+	if(ros_to_sds_.load()) {
 		m3rt::M3_INFO("%s: Disabling ROS2SDS!\n", name.c_str());
-		ros_to_sds_ = 0;
+		ros_to_sds_ = false;
 	}
-	ros_to_sds_mtx.unlock();
 }
 
 void OmnibaseCtrl::shutdown() {
 	if (hst) {
-		m3rt::M3_INFO("Removing RT thread...\n");
-		sys_thread_end = 1;
+	    disable_ros2sds();
+	    changeState(STATE_ESTOP);
+	    m3rt::M3_INFO("Removing RT thread...\n");
+		sys_thread_end = true;
 		usleep(1250000);
-		if (sys_thread_active)
+		if (sys_thread_active.load())
 			m3rt::M3_ERR("Real-time thread did not shutdown correctly or was never running...\n");
 		else {
 			rt_thread_join(hst);
@@ -542,11 +508,32 @@ void OmnibaseCtrl::shutdown() {
 		}
         rt_shm_free(nam2num(MEKA_ODOM_SHM));
 	}
+
+	switch (ctrl_mode) {
+    case (SDS):
+            detach_sds_th_.join(); //should already be ended. anyways...
+            m3rt::M3_INFO("SDS init thead ended.\n");
+        break;
+    case (SHR): //todo
+        break;
+    }
+	running = false;
 }
 
 void OmnibaseCtrl::init_sds() {
 
-	ros::AsyncSpinner spinner(1); // Use 1 thread - check if you actually need this for only publishing
+	while(1) {
+	    M3OmnibaseStatus *status = (M3ActuatorStatus*) obase_shr_ptr_->GetStatus();
+	    int64_t timestamp = status->base()->timestamp();
+	    if(timestamp) {
+	        m3rt::M3_INFO("Timestamp found, initializing SDS in 5 seconds..\n");
+	        sleep(5);
+	        break;
+	    }
+	    sleep(1);
+	}
+
+    ros::AsyncSpinner spinner(1); // Use 1 thread - check if you actually need this for only publishing
 	spinner.start();
 
 	ros_nh_ptr_ = new ros::NodeHandle(node_name + "_base_controller");
@@ -560,17 +547,19 @@ void OmnibaseCtrl::init_sds() {
 
 	rt_allow_nonroot_hrt();
 	// Create a rt thread for ros omnibase control via sds
-	sys = (M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds),
-			USE_VMALLOC);
+	sys = (M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds), USE_VMALLOC);
 	if (sys) {
-		m3rt::M3_INFO(
-				"Found shared memory starting omnibase control via shared data service.\n");
+		m3rt::M3_INFO("Found shared memory starting omnibase control via shared data service.\n");
 		rt_allow_nonroot_hrt();
 		hst = rt_thread_create((void*) rt_system_thread, sys, 10000);
 		running = true;
 	} else {
 		m3rt::M3_ERR("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
 	}
+
+	/*while(hst) {
+	    usleep(100000); //0.1 sec
+	}*/
 
 }
 

@@ -62,8 +62,9 @@ private:
 
 	ros::NodeHandle* ros_nh_ptr_;
 
-	void init_sds();
+	std::thread detach_sds_th_;
 
+	void init_sds();
 
 };
 
