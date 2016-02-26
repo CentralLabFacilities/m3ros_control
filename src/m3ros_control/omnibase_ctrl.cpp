@@ -9,7 +9,6 @@
 
 #include <atomic>
 #include <mutex>
-#include <thread>
 #include <stdio.h>
 #include <assert.h>
 #include <rtai_shm.h>
@@ -18,22 +17,23 @@
 #include <tf/transform_broadcaster.h>
 
 #include <m3/toolbox/toolbox.h>
+#include "m3/vehicles/omnibase.pb.h"
 
 #define RT_TASK_FREQUENCY_MEKA_OMNI_SHM 100
 #define RT_TIMER_TICKS_NS_MEKA_OMNI_SHM (1000000000 / RT_TASK_FREQUENCY_MEKA_OMNI_SHM)      //Period of rt-timer
 
-const char *MEKA_ODOM_SHM = "OSHMM";
-const char *MEKA_ODOM_CMD_SEM = "OSHMC";
-const char *MEKA_ODOM_STATUS_SEM = "OSHMS";
-const char *MEKA_OMNIBASE_SHM = "OSHMP";
+#define MEKA_ODOM_SHM "OSHMM"
+#define MEKA_ODOM_CMD_SEM "OSHMC"
+#define MEKA_ODOM_STATUS_SEM "OSHMS"
+#define MEKA_OMNIBASE_SHM "OSHMP"
 
-const int MEKA_ODOM_SHM_TO = 100000;
-const int CYCLE_TIME_SEC = 4;
-const float VEL_TIMEOUT_SEC = 1.0;
+#define MEKA_ODOM_SHM_TO 100000
+#define CYCLE_TIME_SEC 4
+#define VEL_TIMEOUT_SEC 1.0
 
-std::atomic<bool> ros_to_sds_ = false;
-std::atomic<bool> sys_thread_active = false;
-std::atomic<bool> sys_thread_end = false;
+std::atomic<bool> ros_to_sds_{false};
+std::atomic<bool> sys_thread_active{false};
+std::atomic<bool> sys_thread_end{false};
 
 static M3OmnibaseShmSdsCommand cmd;
 static M3OmnibaseShmSdsStatus status;
@@ -251,7 +251,6 @@ void* rt_system_thread(void * arg) {
 	SEM * status_sem;
 	SEM * command_sem;
 
-	int timeout = 20;
 	int cntr = 0;
 	M3Sds * sds = (M3Sds *) arg;
 	rt_printk("Starting ros sds real-time thread\n");
@@ -271,33 +270,12 @@ void* rt_system_thread(void * arg) {
 		return 0;
 	}
 
-	while (!status_sem && timeout > 0) { //checking for status sem, cmd sem should be ready around the same time..
-		rt_printk("Unable to find the %s semaphore. Waiting...\n",
-				MEKA_ODOM_STATUS_SEM);
-		status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
-		rt_sleep(nano2count(100000000));
-		timeout--;
-	}
+	status_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_STATUS_SEM));
 
 	if (!status_sem) {
-		rt_printk("Unable to find the %s semaphore. Timeout reached! Exiting...\n",
-				MEKA_ODOM_STATUS_SEM);
+		rt_printk("Unable to find the %s semaphore.\n", MEKA_ODOM_STATUS_SEM);
 		rt_task_delete(task);
 		return 0;
-	} else {
-		rt_printk("Semaphore found! Now waiting for RT system to start up and fill the status..");
-		bool running = false;
-		while(!running) {
-			rt_sem_wait(status_sem);
-			memcpy(&status, sds->status, sds_status_size);
-			rt_sem_signal(status_sem);
-			if (!status.timestamp) {
-				rt_sleep(nano2count(100000000));
-			} else {
-				rt_printk("Timestamp found, continuing starting of omnibase ctrl RT thread...");
-				running = true;
-			}
-		}
 	}
 
 	command_sem = (SEM*) rt_get_adr(nam2num(MEKA_ODOM_CMD_SEM));
@@ -428,11 +406,11 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 
     m3rt::M3_INFO("%s: Initializing dispatch thread..\n", name.c_str());
     switch (ctrl_mode) {
-    case (SDS):
-            detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
-        break;
-    case (SHR):	//todo
-        break;
+		case (SDS):
+			detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
+			break;
+		case (SHR):	//todo
+			break;
     }
 
 }
@@ -523,11 +501,11 @@ void OmnibaseCtrl::shutdown() {
 void OmnibaseCtrl::init_sds() {
 
 	while(1) {
-	    M3OmnibaseStatus *status = (M3ActuatorStatus*) obase_shr_ptr_->GetStatus();
-	    int64_t timestamp = status->base()->timestamp();
+	    M3OmnibaseStatus *status = (M3OmnibaseStatus*) obase_shr_ptr_->GetStatus();
+	    int64_t timestamp = (status->mutable_base())->timestamp();
 	    if(timestamp) {
-	        m3rt::M3_INFO("Timestamp found, initializing SDS in 5 seconds..\n");
-	        sleep(5);
+	        m3rt::M3_INFO("Timestamp found, initializing SDS in 10 seconds..\n");
+	        sleep(10);
 	        break;
 	    }
 	    sleep(1);

@@ -12,6 +12,7 @@
 
 #include <m3meka_msgs/M3ControlStates.h>
 
+#include <thread>
 #include <ros/ros.h>
 
 #ifndef M3ROS_CONTROL_OMNIBASE_CTRL_H_
