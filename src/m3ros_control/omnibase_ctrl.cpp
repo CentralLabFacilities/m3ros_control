@@ -80,7 +80,7 @@ int64_t get_timestamp() {
 void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 
 	if (!status.calibrated) {
-		printf("Omnibase is not calibrated. Please calibrate and run again.  Omnibase control exiting.\n");
+		rt_printk("Omnibase is not calibrated. Please calibrate and run again. Omnibase control exiting.\n");
 		sys_thread_end = true;
 		ros_to_sds_ = false;
 		return;
@@ -91,7 +91,7 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
     }
 
 	if (rtai_to_ros_offset.toSec() == 0.0) {
-		//printf("Time not in sync yet. Waiting to publish for next call.\n");
+		rt_printk("Time not in sync yet. Waiting to publish for next call.\n");
 		return;
 	}
 
@@ -202,7 +202,7 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
 	double smoothing = 0.95;
 	ros::Duration rtai_to_shm_offset_copy;
 
-	while (true) {
+	while (!sys_thread_end.load()) {
 
 		// ~2Hz update rate
 		usleep(500000);
@@ -239,6 +239,7 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
 		rtai_to_ros_offset = result;
 		rtai_to_ros_offset_mutex.unlock();
 	}
+
 }
 
 /**
@@ -250,6 +251,7 @@ void* rt_system_thread(void * arg) {
 
 	SEM * status_sem;
 	SEM * command_sem;
+	RT_TASK * task;
 
 	int cntr = 0;
 	M3Sds * sds = (M3Sds *) arg;
@@ -260,7 +262,7 @@ void* rt_system_thread(void * arg) {
 
 	memset(&cmd, 0, sds_cmd_size);
 
-	RT_TASK * task = rt_task_init_schmod(nam2num(MEKA_OMNIBASE_SHM), 3, 0, 0,
+	task = rt_task_init_schmod(nam2num(MEKA_OMNIBASE_SHM), 3, 0, 0,
 			SCHED_FIFO, 0xF);
 
 	rt_allow_nonroot_hrt();
@@ -310,12 +312,15 @@ void* rt_system_thread(void * arg) {
 	ros::Duration rtai_to_shm_offset;
 	std::thread t1(update_rtai_to_ros_offset, std::ref(rtai_to_ros_offset),
 			std::ref(rtai_to_shm_offset));
+	t1.detach(); // detach for rt. otherwise the task overruns on joining..
 	rt_task_make_periodic(task, now + tick_period, tick_period);
 	mlockall(MCL_CURRENT | MCL_FUTURE);
 	rt_make_hard_real_time();
 	long long start_time, end_time, dt;
 	long long step_cnt = 0;
 	sys_thread_active = true;
+	rt_printk("Sys thread active? %d.\n", sys_thread_active.load());
+	rt_printk("Sys thread end? %d.\n", sys_thread_end.load());
 
 	while (!sys_thread_end.load()) {
 		//on system startup this shm timestamp is not initialized
@@ -342,6 +347,7 @@ void* rt_system_thread(void * arg) {
 		rt_sem_wait(command_sem);
 		memcpy(sds->cmd, &cmd, sds_cmd_size);
 		rt_sem_signal(command_sem);
+
 
 		end_time = nano2count(rt_get_cpu_time_ns());
 		dt = end_time - start_time;
@@ -377,11 +383,11 @@ void* rt_system_thread(void * arg) {
 		}
 		rt_task_wait_period();
 	}
-	t1.join();
 	rt_printk("Exiting RealTime Thread...\n");
 	rt_make_soft_real_time();
 	rt_task_delete(task);
 	sys_thread_active = false;
+	rt_printk("Success!\n");
 	return static_cast<void *>(0);
 }
 
@@ -474,17 +480,15 @@ void OmnibaseCtrl::shutdown() {
 	if (hst) {
 	    disable_ros2sds();
 	    changeState(STATE_ESTOP);
-	    m3rt::M3_INFO("Removing RT thread...\n");
 		sys_thread_end = true;
 		usleep(1250000);
 		if (sys_thread_active.load())
 			m3rt::M3_ERR("Real-time thread did not shutdown correctly or was never running...\n");
 		else {
-			rt_thread_join(hst);
 			hst = 0;
-			m3rt::M3_INFO("Success in removing RT thread!\n");
+			rt_shm_free(nam2num(MEKA_ODOM_SHM));
+			m3rt::M3_INFO("Success in removing RT thread\n");
 		}
-        rt_shm_free(nam2num(MEKA_ODOM_SHM));
 	}
 
 	switch (ctrl_mode) {
@@ -521,8 +525,6 @@ void OmnibaseCtrl::init_sds() {
 	odom_publisher_g = ros_nh_ptr_->advertise<nav_msgs::Odometry>("odom", 1,
 			true);
 
-	//signal(SIGINT, end_sds_th);
-
 	rt_allow_nonroot_hrt();
 	// Create a rt thread for ros omnibase control via sds
 	sys = (M3Sds*) rt_shm_alloc(nam2num(MEKA_ODOM_SHM), sizeof(M3Sds), USE_VMALLOC);
@@ -534,10 +536,6 @@ void OmnibaseCtrl::init_sds() {
 	} else {
 		m3rt::M3_ERR("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
 	}
-
-	/*while(hst) {
-	    usleep(100000); //0.1 sec
-	}*/
 
 }
 

@@ -323,9 +323,9 @@ void RosControlComponent::StepStatus() {
         }
 
         //check every 100 loops whether obase rt thread is still running. if not, shut it down
-        if (loop_cnt_ % 100 == 0 && obase_ptr_->is_running() && obase_ptr_->is_sds_ended()) {
+        /*if (loop_cnt_ % 100 == 0 && obase_ptr_->is_running() && obase_ptr_->is_sds_ended()) {
             obase_ptr_->shutdown();
-        }
+        }*/
 
         // controller manager update
         // DO  NOT USE ros::Time::now();
@@ -483,6 +483,7 @@ void RosControlComponent::RosShutdown() {
         obase_ptr_->shutdown();
     }
 
+    m3rt::M3_INFO("Shutting down serviceserver...\n");
     srv_.shutdown();
 }
 
