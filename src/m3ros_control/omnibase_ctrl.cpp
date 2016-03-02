@@ -399,7 +399,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		m3::M3JointArray* obase_ja_shr_ptr, std::string nodename,
 		BASE_CTRL_MODE mode) :
 		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
-		running(false), name("base"), node_name(nodename), ctrl_state(STATE_ESTOP),
+		sys(NULL), ros_nh_ptr_(NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_ESTOP),
 		hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
@@ -422,20 +422,17 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 }
 
 OmnibaseCtrl::~OmnibaseCtrl() {
-	if (ros_nh_ptr_ != NULL)
-		delete ros_nh_ptr_;
 	if (sys != NULL)
 		delete sys;
 	if (ros_nh_ptr_ != NULL)
 		delete ros_nh_ptr_;
+	/*if(obase_shr_ptr_ != NULL)
+		delete obase_shr_ptr_;
+	if(obase_shm_shr_ptr_ != NULL)
+		delete obase_shm_shr_ptr_;
+	if(obase_ja_shr_ptr_ != NULL)
+		delete obase_ja_shr_ptr_;*/
 
-	switch (ctrl_mode) {
-    case (SDS):
-            detach_sds_th_.join();
-        break;
-    case (SHR): //todo
-        break;
-	}
 }
 
 bool OmnibaseCtrl::is_running() {

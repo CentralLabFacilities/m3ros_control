@@ -55,13 +55,14 @@ private:
 	m3::M3JointArray* obase_ja_shr_ptr_;
     M3Sds* sys; //dunno why this is not in m3 namespace..
 
+    ros::NodeHandle* ros_nh_ptr_;
+
     bool running;
     std::string name, node_name;
     int ctrl_state;
     long hst;
     BASE_CTRL_MODE ctrl_mode;
 
-	ros::NodeHandle* ros_nh_ptr_;
 
 	std::thread detach_sds_th_;
 

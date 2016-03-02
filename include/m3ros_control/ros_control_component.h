@@ -42,8 +42,8 @@ extern "C"
 static int tmp_dt_status_;
 static int tmp_dt_cmd_;
 
-static long long start_dt_status_, end_dt_status_, elapsed_dt_status_;
-static long long start_dt_cmd_, end_dt_cmd_, elapsed_dt_cmd_;
+//static long long start_dt_status_, end_dt_status_, elapsed_dt_status_;
+//static long long start_dt_cmd_, end_dt_cmd_, elapsed_dt_cmd_;
 
 #ifndef NDEBUG
 #define TIME_ACTIVE 1
@@ -81,10 +81,11 @@ public:
     google::protobuf::Message* GetParam();
 
     SEM *state_mutex_;
-    bool spinner_running_;
-    bool was_estop_;
-
     ros::CallbackQueue* cb_queue_ptr; // Used to separate this node queue from the global one
+
+    bool was_estop_;
+    bool spinner_running_;
+
 
 protected:
     bool LinkDependentComponents();
