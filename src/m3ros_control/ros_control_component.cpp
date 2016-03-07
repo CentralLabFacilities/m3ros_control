@@ -151,7 +151,7 @@ RosControlComponent::~RosControlComponent() {
 		delete cb_queue_ptr;
 
 	if (state_mutex_ != NULL)
-		delete state_mutex_;
+		rt_sem_delete(state_mutex_);
 
 }
 

@@ -422,8 +422,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 }
 
 OmnibaseCtrl::~OmnibaseCtrl() {
-	if (sys != NULL)
-		delete sys;
+
 	if (ros_nh_ptr_ != NULL)
 		delete ros_nh_ptr_;
 	/*if(obase_shr_ptr_ != NULL)
@@ -505,8 +504,8 @@ void OmnibaseCtrl::init_sds() {
 	    M3OmnibaseStatus *status = (M3OmnibaseStatus*) obase_shr_ptr_->GetStatus();
 	    int64_t timestamp = (status->mutable_base())->timestamp();
 	    if(timestamp) {
-	        m3rt::M3_INFO("Timestamp found, initializing SDS in 10 seconds..\n");
-	        sleep(10);
+	        m3rt::M3_INFO("Timestamp found, initializing SDS for Omnibase control in 5 seconds.\n");
+	        sleep(5);
 	        break;
 	    }
 	    sleep(1);
