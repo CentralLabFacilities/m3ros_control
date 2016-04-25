@@ -1,8 +1,11 @@
 /*
  * meka_robot_hw.cpp
  *
- *  Created on: Dec 18, 2016
+ *  refactored on: Dec 18, 2015
  *      Author: plueckin
+ *  
+ *  Author: Guillaume Walck 2014
+ *  derived from Antoine's Horau original work
  */
 
 #include <m3/robots/humanoid.h>
@@ -21,17 +24,23 @@
 #include <stdio.h>
 
 // master states
-#define STATE_ESTOP     0
+
 #define STATE_UNKNOWN   0
-#define STATE_STANDBY   1
-#define STATE_READY     2
-#define STATE_RUNNING   3
+#define STATE_DISABLE   1
+#define STATE_ENABLE    2
+#define STATE_ESTOP     3
+#define STATE_STANDBY   4
+#define STATE_READY     5
+#define STATE_RUNNING   6
 
 // state transitions command
-#define STATE_CMD_ESTOP     0
-#define STATE_CMD_STOP      1
-#define STATE_CMD_FREEZE    2
-#define STATE_CMD_START     3
+
+#define STATE_CMD_DISABLE   1
+#define STATE_CMD_ENABLE    2
+#define STATE_CMD_ESTOP     3
+#define STATE_CMD_STOP      4
+#define STATE_CMD_FREEZE    5
+#define STATE_CMD_START     6
 
 namespace ros_control_component {
 

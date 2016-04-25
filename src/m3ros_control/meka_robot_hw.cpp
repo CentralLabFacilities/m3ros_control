@@ -1,8 +1,11 @@
 /*
  * meka_robot_hw.h
  *
- *  Created on: Dec 18, 2016
+ *  refactored on: Dec 18, 2015
  *      Author: plueckin
+ *  
+ *  Author: Guillaume Walck 2014
+ *  derived from Antoine's Horau original work
  */
 
 #include "m3ros_control/meka_robot_hw.h"
@@ -126,65 +129,101 @@ void MekaRobotHW::write() {
 
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
 
-        // in ready state, override joint_commands to freeze movements
-        if (it->second.ctrl_state == STATE_READY) {
-            it->second.joint_mode = Chain_::joint_mode_t::POSITION; //change this!
-            checkCtrlConvergence(it->first);
-            freezeJoints(it->first);
-        }
-
-        double s_ = 1.0;
-        if (it->second.ctrl_state < STATE_READY) {
-            s_ = 0.0;
-            it->second.joint_mode = Chain_::joint_mode_t::NOT_READY;
-        }
-
-        vector<joint_value_> *vals = &it->second.values;
-
-        if (it->first == "zlift") {
-            zlift_shr_ptr_->SetDesiredStiffness(s_);
-            zlift_shr_ptr_->SetSlewRate(
-                    s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
-            switch (it->second.joint_mode) {
-            case Chain_::joint_mode_t::VELOCITY:
-                zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
-                if (it->second.frozen)
-                    zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).frz_cmd));
-                else
-                    zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).pos_cmd));
-                break;
-            case Chain_::joint_mode_t::POSITION:
-                zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
-                zlift_shr_ptr_->SetDesiredPos(m2mm(vals->at(0).pos_cmd));
-                break;
-            case Chain_::joint_mode_t::EFFORT: //not yet implemented
-                break;
-            default:
-                break;
+        // if the group is not disabled
+        if (it->second.ctrl_state != STATE_DISABLE)
+        {
+            // in ready state, override joint_commands to freeze movements
+            if (it->second.ctrl_state == STATE_READY) {
+                it->second.joint_mode = Chain_::joint_mode_t::POSITION; //change this!
+                checkCtrlConvergence(it->first);
+                freezeJoints(it->first);
             }
-            continue;
-        }
 
-        //this is necessary because these groups need special treatment right now
-        bool t_ = false;
-        bool h_ = false;
-        bool ha_ = false;
-        if (it->first == "torso")
-            t_ = true;
-        if (it->first == "head")
-            h_ = true;
-        if (it->first == "right_hand" || it->first == "left_hand")
-            ha_ = true;
+            double s_ = 1.0;
+            if (it->second.ctrl_state < STATE_READY) {
+                s_ = 0.0;
+                it->second.joint_mode = Chain_::joint_mode_t::NOT_READY;
+            }
 
-        for (size_t i = 0; i < vals->size(); i++) {
-            if (t_ || h_) {
-                if (i == 2 && t_) //j1 slave is a copy of j1, do not write j1 slave value to the actuator
-                    break;
-                bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
-                bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i,
-                        s_);
+            vector<joint_value_> *vals = &it->second.values;
+
+            if (it->first == "zlift") {
+                zlift_shr_ptr_->SetDesiredStiffness(s_);
+                zlift_shr_ptr_->SetSlewRate(
+                        s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
                 switch (it->second.joint_mode) {
-                case Chain_::joint_mode_t::VELOCITY: //not yet implemented
+                case Chain_::joint_mode_t::VELOCITY:
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
+                    if (it->second.frozen)
+                        zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).frz_cmd));
+                    else
+                        zlift_shr_ptr_->SetDesiredPosDot(m2mm(vals->at(0).pos_cmd));
+                    break;
+                case Chain_::joint_mode_t::POSITION:
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETA_GC);
+                    zlift_shr_ptr_->SetDesiredPos(m2mm(vals->at(0).pos_cmd));
+                    break;
+                case Chain_::joint_mode_t::EFFORT: //not yet implemented
+                    break;
+                default:
+                    break;
+                }
+                continue;
+            }
+
+            //this is necessary because these groups need special treatment right now
+            bool t_ = false;
+            bool h_ = false;
+            bool ha_ = false;
+            if (it->first == "torso")
+                t_ = true;
+            if (it->first == "head")
+                h_ = true;
+            if (it->first == "right_hand" || it->first == "left_hand")
+                ha_ = true;
+
+            for (size_t i = 0; i < vals->size(); i++) {
+                if (t_ || h_) {
+                    if (i == 2 && t_) //j1 slave is a copy of j1, do not write j1 slave value to the actuator
+                        break;
+                    bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
+                    bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i,
+                            s_);
+                    switch (it->second.joint_mode) {
+                    case Chain_::joint_mode_t::VELOCITY: //not yet implemented
+                        break;
+                    case Chain_::joint_mode_t::POSITION:
+                        bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
+                        if (it->second.frozen) {
+                            //if(printcount%200)
+                            //    m3rt::M3_INFO("%s,%s: sending frozen cmd %f, ctrl cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).frz_cmd, vals->at(i).pos_cmd);
+                            bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                                    RAD2DEG(vals->at(i).frz_cmd));
+                        } else {
+                            //if(printcount%200)
+                            //    m3rt::M3_INFO("%s,%s: sending CTRL cmd %f, frz cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).pos_cmd, vals->at(i).frz_cmd);
+                            bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
+                                    RAD2DEG(vals->at(i).pos_cmd));
+                        }
+                        break;
+                    case Chain_::joint_mode_t::EFFORT: //not yet implemented
+                        break;
+                    default:
+                        break;
+                    }
+                    continue;
+                }
+                bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
+                bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i, s_);
+
+                if (ha_ && it->second.ctrl_state < STATE_READY)
+                    bot_shr_ptr_->SetModeOff(it->second.chain_ref, i);
+
+                switch (it->second.joint_mode) {
+                case Chain_::joint_mode_t::VELOCITY:
+                    bot_shr_ptr_->SetModeThetaDotGc(it->second.chain_ref, i);
+                    bot_shr_ptr_->SetThetaDotDeg(it->second.chain_ref, i,
+                            RAD2DEG(vals->at(i).vel_cmd));
                     break;
                 case Chain_::joint_mode_t::POSITION:
                     bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
@@ -200,46 +239,14 @@ void MekaRobotHW::write() {
                                 RAD2DEG(vals->at(i).pos_cmd));
                     }
                     break;
-                case Chain_::joint_mode_t::EFFORT: //not yet implemented
+                case Chain_::joint_mode_t::EFFORT:
+                    bot_shr_ptr_->SetModeTorqueGc(it->second.chain_ref, i);
+                    bot_shr_ptr_->SetTorque_mNm(it->second.chain_ref, i,
+                            m2mm(vals->at(i).eff_cmd));
                     break;
                 default:
                     break;
                 }
-                continue;
-            }
-            bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
-            bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i, s_);
-
-            if (ha_ && it->second.ctrl_state < STATE_READY)
-                bot_shr_ptr_->SetModeOff(it->second.chain_ref, i);
-
-            switch (it->second.joint_mode) {
-            case Chain_::joint_mode_t::VELOCITY:
-                bot_shr_ptr_->SetModeThetaDotGc(it->second.chain_ref, i);
-                bot_shr_ptr_->SetThetaDotDeg(it->second.chain_ref, i,
-                        RAD2DEG(vals->at(i).vel_cmd));
-                break;
-            case Chain_::joint_mode_t::POSITION:
-                bot_shr_ptr_->SetModeThetaGc(it->second.chain_ref, i);
-                if (it->second.frozen) {
-                    //if(printcount%200)
-                    //    m3rt::M3_INFO("%s,%s: sending frozen cmd %f, ctrl cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).frz_cmd, vals->at(i).pos_cmd);
-                    bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
-                            RAD2DEG(vals->at(i).frz_cmd));
-                } else {
-                    //if(printcount%200)
-                    //    m3rt::M3_INFO("%s,%s: sending CTRL cmd %f, frz cmd: %f\n ", it->first.c_str(), vals->at(i).name.c_str(), vals->at(i).pos_cmd, vals->at(i).frz_cmd);
-                    bot_shr_ptr_->SetThetaDeg(it->second.chain_ref, i,
-                            RAD2DEG(vals->at(i).pos_cmd));
-                }
-                break;
-            case Chain_::joint_mode_t::EFFORT:
-                bot_shr_ptr_->SetModeTorqueGc(it->second.chain_ref, i);
-                bot_shr_ptr_->SetTorque_mNm(it->second.chain_ref, i,
-                        m2mm(vals->at(i).eff_cmd));
-                break;
-            default:
-                break;
             }
         }
     }
@@ -267,70 +274,103 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
     map_it_t it = chain_map_.find(group_name);
     if (it != chain_map_.end()) {
         switch (state_cmd) {
-        case STATE_CMD_ESTOP:
-
+          
+        case STATE_CMD_DISABLE:
             if (it->second.ctrl_state == STATE_RUNNING) {
                 //switch controller off
                 m3rt::M3_INFO("%s: You should switch controllers off !\n",
                         group_name.c_str());
             }
-            if (it->second.ctrl_state != STATE_ESTOP) {
-                m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
+            if (it->second.ctrl_state != STATE_DISABLE) {
+                m3rt::M3_INFO("%s: Disabled\n", group_name.c_str());
             }
-
-            it->second.ctrl_state = STATE_ESTOP;
+            it->second.ctrl_state = STATE_DISABLE;
             it->second.frozen = false;
             it->second.allow_running = false;
             break;
+        
+        case STATE_CMD_ENABLE:
+            if (it->second.ctrl_state == STATE_DISABLE) {
+                it->second.ctrl_state = STATE_ESTOP;
+                it->second.frozen = false;
+                it->second.allow_running = false;
+            }
+            break;
+            
+        case STATE_CMD_ESTOP:
+            if (it->second.ctrl_state != STATE_DISABLE)
+            {
+                if (it->second.ctrl_state == STATE_RUNNING) {
+                    //switch controller off
+                    m3rt::M3_INFO("%s: You should switch controllers off !\n",
+                            group_name.c_str());
+                }
+                if (it->second.ctrl_state != STATE_ESTOP) {
+                    m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
+                }
+
+                it->second.ctrl_state = STATE_ESTOP;
+                it->second.frozen = false;
+                it->second.allow_running = false;
+            }
+            break;
 
         case STATE_CMD_STOP:
-            if (it->second.ctrl_state == STATE_RUNNING)
-                it->second.allow_running = false;
-            it->second.ctrl_state = STATE_STANDBY;
-            m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
-            it->second.frozen = false;
+            if (it->second.ctrl_state != STATE_DISABLE)
+            {
+                if (it->second.ctrl_state == STATE_RUNNING)
+                    it->second.allow_running = false;
+                it->second.ctrl_state = STATE_STANDBY;
+                m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
+                it->second.frozen = false;
+            }
             break;
 
         case STATE_CMD_FREEZE:
-            if (it->second.ctrl_state == STATE_RUNNING)
-                it->second.allow_running = false;
-            // cannot go to freeze if previously in e-stop
-            // go to standby first
-            if (it->second.ctrl_state == STATE_ESTOP)
-                ret = -3;
-            else {
-                it->second.ctrl_state = STATE_READY;
-                m3rt::M3_INFO("%s: in freeze state\n ", group_name.c_str());
-            }
+            if (it->second.ctrl_state != STATE_DISABLE)
+            {
+                if (it->second.ctrl_state == STATE_RUNNING)
+                    it->second.allow_running = false;
+                // cannot go to freeze if previously in e-stop
+                // go to standby first
+                if (it->second.ctrl_state == STATE_ESTOP)
+                    ret = -3;
+                else {
+                    it->second.ctrl_state = STATE_READY;
+                    m3rt::M3_INFO("%s: in freeze state\n ", group_name.c_str());
+                }
+              }
             break;
 
         case STATE_CMD_START:
-            if (it->second.ctrl_state != STATE_RUNNING) {
-                // cannot go to run if previously in e-stop
-                // go to standby first
-                if (it->second.ctrl_state == STATE_ESTOP) {
-                    ret = -3;
-                    break;
-                }
+            if (it->second.ctrl_state != STATE_DISABLE)
+            {
+                if (it->second.ctrl_state != STATE_RUNNING) {
+                    // cannot go to run if previously in e-stop
+                    // go to standby first
+                    if (it->second.ctrl_state == STATE_ESTOP) {
+                        ret = -3;
+                        break;
+                    }
 
-                if (it->second.allow_running) {
-                    it->second.ctrl_state = STATE_RUNNING;
-                    it->second.frozen = false;
-                    m3rt::M3_INFO(
-                            "%s: allowed to run, putting in running state\n ",
-                            group_name.c_str());
-                } else {
-                    // set to ready to allow for convergence
-                    // to be checked and freeze to be triggered
-                    it->second.ctrl_state = STATE_READY;
-                    m3rt::M3_ERR(
-                            "%s: Controller did not converge to freeze position, \
-                                 cannot switch to running...\n",
-                            group_name.c_str());
-                    ret = -2;
+                    if (it->second.allow_running) {
+                        it->second.ctrl_state = STATE_RUNNING;
+                        it->second.frozen = false;
+                        m3rt::M3_INFO(
+                                "%s: allowed to run, putting in running state\n ",
+                                group_name.c_str());
+                    } else {
+                        // set to ready to allow for convergence
+                        // to be checked and freeze to be triggered
+                        it->second.ctrl_state = STATE_READY;
+                        m3rt::M3_ERR(
+                                "%s: Controller did not converge to freeze position, \
+                                     cannot switch to running...\n",
+                                group_name.c_str());
+                        ret = -2;
+                    }
                 }
             }
-
             break;
         default:
             m3rt::M3_ERR("Unknown state command %d...\n", state_cmd);

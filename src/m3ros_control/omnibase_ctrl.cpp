@@ -49,17 +49,23 @@ std::mutex rtai_to_ros_offset_mutex;
 std::mutex rtai_to_shm_offset_mutex;
 
 // master states
-#define STATE_ESTOP     0
+
 #define STATE_UNKNOWN   0
-#define STATE_STANDBY   1
-#define STATE_READY     2
-#define STATE_RUNNING   3
+#define STATE_DISABLE   1
+#define STATE_ENABLE    2
+#define STATE_ESTOP     3
+#define STATE_STANDBY   4
+#define STATE_READY     5
+#define STATE_RUNNING   6
 
 // state transitions command
-#define STATE_CMD_ESTOP     0
-#define STATE_CMD_STOP      1
-#define STATE_CMD_FREEZE    2
-#define STATE_CMD_START     3
+
+#define STATE_CMD_DISABLE   1
+#define STATE_CMD_ENABLE    2
+#define STATE_CMD_ESTOP     3
+#define STATE_CMD_STOP      4
+#define STATE_CMD_FREEZE    5
+#define STATE_CMD_START     6
 
 using namespace std;
 
@@ -536,9 +542,27 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
     	ret = -3;
     } else {
         switch (state_cmd) {
+            case STATE_CMD_DISABLE:
+                if (ctrl_state == STATE_RUNNING) {
+                  disable_ros2sds();
+                  m3rt::M3_INFO("%s: You should switch controllers off !\n", name.c_str());
+                }
+                
+                if (ctrl_state != STATE_DISABLE) {
+                    m3rt::M3_INFO("%s: Disabled\n", name.c_str());
+                }
+                ctrl_state = STATE_DISABLE;
+                break;
+          
+            case STATE_CMD_ENABLE:
+                if (trl_state == STATE_DISABLE) {
+                    ctrl_state = STATE_ESTOP;
+                }
+                break;
+
             case STATE_CMD_ESTOP:
                 if (ctrl_state == STATE_RUNNING) {
-					disable_ros2sds();
+                    disable_ros2sds();
                 }
                 if (ctrl_state != STATE_ESTOP) {
                     m3rt::M3_INFO("%s: ESTOP detected\n", name.c_str());
@@ -546,10 +570,10 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
                 ctrl_state = STATE_ESTOP;
                 break;
             case STATE_CMD_STOP:
-            	if (ctrl_state == STATE_RUNNING) {
-            		disable_ros2sds();
-            	}
-            	ctrl_state = STATE_STANDBY;
+                if (ctrl_state == STATE_RUNNING) {
+                  disable_ros2sds();
+                }
+                ctrl_state = STATE_STANDBY;
                 m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
                 break;
             case STATE_CMD_FREEZE: //no freeze for base.
