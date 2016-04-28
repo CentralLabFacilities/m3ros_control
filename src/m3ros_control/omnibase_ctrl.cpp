@@ -15,6 +15,7 @@
 
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
+#include <realtime_tools/realtime_publisher.h>
 
 #include <m3/toolbox/toolbox.h>
 #include "m3/vehicles/omnibase.pb.h"
@@ -40,7 +41,7 @@ static M3OmnibaseShmSdsStatus status;
 static int64_t last_cmd_ts;
 
 nav_msgs::Odometry odom_g;
-ros::Publisher odom_publisher_g;
+realtime_tools::RealtimePublisher<nav_msgs::Odometry>* realtime_pub;
 ros::Subscriber cmd_sub_g;
 boost::shared_ptr<tf::TransformBroadcaster> odom_broadcaster_ptr;
 
@@ -102,8 +103,6 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 	ros::Time ros_now = rtai_now + rtai_to_ros_offset;
 	rtai_to_ros_offset_mutex.unlock();
 
-	odom_g.header.stamp = ros_now;
-
 	// get from status
 	double x = status.x;
 	double y = status.y;
@@ -129,6 +128,7 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 	odom_broadcaster_ptr->sendTransform(odom_trans);
 
 	//then, publish the pose and twist (movement) to ros
+	odom_g.header.stamp = ros_now;
 	odom_g.header.frame_id = "odom";
 	//set the position
 	odom_g.pose.pose.position.x = x;
@@ -140,7 +140,11 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 	odom_g.twist.twist.linear.x = vx;
 	odom_g.twist.twist.linear.y = vy;
 	odom_g.twist.twist.angular.z = vth;
-	odom_publisher_g.publish(odom_g);
+
+	if (realtime_pub->trylock()) {
+		realtime_pub->msg_ = odom_g;
+		realtime_pub->unlockAndPublish();
+	}
 
 	if (status.timestamp - last_cmd_ts > VEL_TIMEOUT_SEC * 1000000.0) {
 		cmd.x_velocity = 0.;
@@ -174,18 +178,10 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
 void step_sds(const geometry_msgs::TwistConstPtr& msg) {
 
 	if (ros_to_sds_.load()) {
-	    //printf("x: %f\n", msg->linear.x); //TODO: this is for testing..
-        //printf("y: %f\n", msg->linear.y);
-        //printf("a: %f\n", msg->angular.z);
-
 	    //put the movements by ros into the cmd struct of the meka
 		cmd.x_velocity = msg->linear.x;
 		cmd.y_velocity = msg->linear.y;
 		cmd.yaw_velocity = msg->angular.z;
-
-		//printf("x: %f\n", cmd.x_velocity);
-		//printf("y: %f\n", cmd.y_velocity);
-		//printf("a: %f\n", cmd.yaw_velocity);
 
 		last_cmd_ts = status.timestamp; //if the offset between actual time and this timestamp gets high enough, the base is turned off. see M3OmnibaseShm
 	}
@@ -239,6 +235,8 @@ void update_rtai_to_ros_offset(ros::Duration & rtai_to_ros_offset,
 		rtai_to_ros_offset = result;
 		rtai_to_ros_offset_mutex.unlock();
 	}
+
+	return static_cast<void>(0);
 
 }
 
@@ -319,8 +317,6 @@ void* rt_system_thread(void * arg) {
 	long long start_time, end_time, dt;
 	long long step_cnt = 0;
 	sys_thread_active = true;
-	rt_printk("Sys thread active? %d.\n", sys_thread_active.load());
-	rt_printk("Sys thread end? %d.\n", sys_thread_end.load());
 
 	while (!sys_thread_end.load()) {
 		//on system startup this shm timestamp is not initialized
@@ -335,7 +331,6 @@ void* rt_system_thread(void * arg) {
 			rtai_to_shm_offset_mutex.unlock();
 			//now handle this offset as well:
 		}
-		//}
 
 		start_time = nano2count(rt_get_cpu_time_ns());
 		rt_sem_wait(status_sem);
@@ -347,7 +342,6 @@ void* rt_system_thread(void * arg) {
 		rt_sem_wait(command_sem);
 		memcpy(sds->cmd, &cmd, sds_cmd_size);
 		rt_sem_signal(command_sem);
-
 
 		end_time = nano2count(rt_get_cpu_time_ns());
 		dt = end_time - start_time;
@@ -518,8 +512,8 @@ void OmnibaseCtrl::init_sds() {
 
 	odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
 	cmd_sub_g = ros_nh_ptr_->subscribe("cmd_vel", 1, step_sds);
-	odom_publisher_g = ros_nh_ptr_->advertise<nav_msgs::Odometry>("odom", 1,
-			true);
+	//ros_nh_ptr_->advertise<nav_msgs::Odometry>("odom", 1);
+	realtime_pub = new realtime_tools::RealtimePublisher<nav_msgs::Odometry>(*ros_nh_ptr_, "odom", 1);
 
 	rt_allow_nonroot_hrt();
 	// Create a rt thread for ros omnibase control via sds
@@ -533,6 +527,7 @@ void OmnibaseCtrl::init_sds() {
 		m3rt::M3_ERR("Rtai_malloc failure for %s\n", MEKA_ODOM_SHM);
 	}
 
+	return static_cast<void>(0);
 }
 
 void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
@@ -551,7 +546,6 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
             case STATE_CMD_ESTOP:
                 if (ctrl_state == STATE_RUNNING) {
 					disable_ros2sds();
-                    m3rt::M3_INFO("%s: You should switch controllers off !\n", name.c_str());
                 }
                 if (ctrl_state != STATE_ESTOP) {
                     m3rt::M3_INFO("%s: ESTOP detected\n", name.c_str());
