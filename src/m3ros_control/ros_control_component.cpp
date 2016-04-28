@@ -511,16 +511,19 @@ bool RosControlComponent::changeStateCallback(
 	int ret = 0;
 	if (req.command.state.size() > 0
 			&& req.command.state.size() == req.command.group_name.size()) {
-		// E-stop state can be modified only from internal commands
-		if (!was_estop_) {
-			for (size_t i = 0; i < req.command.group_name.size(); i++) {
-				int ret_tmp = 0;
-				//special handling of base for now...
-				if (req.command.group_name[i] == "base") {
-					rt_sem_wait(this->state_mutex_);
-					ret_tmp = obase_ptr_->changeState(req.command.state[i]);
-					rt_sem_signal(this->state_mutex_);
-				} else {
+		for (size_t i = 0; i < req.command.group_name.size(); i++) {
+			int ret_tmp = 0;
+			//special handling of base for now...
+			if (req.command.group_name[i] == "base") {
+				rt_sem_wait(this->state_mutex_);
+				ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+				rt_sem_signal(this->state_mutex_);
+			} else {
+				// E-stop state can be modified only from internal commands but enable/disable commands should pass
+				if (req.command.state[i] == STATE_CMD_ENABLE ||
+					req.command.state[i] == STATE_CMD_DISABLE ||
+					!was_estop_)
+				{
 					// during change, no other function must use the ctrl_state.
 					rt_sem_wait(this->state_mutex_);
 					ret_tmp = hw_ptr_->changeState(req.command.state[i],
@@ -531,14 +534,16 @@ bool RosControlComponent::changeStateCallback(
 					res.result.state.push_back(
 							hw_ptr_->getCtrlState(req.command.group_name[i]));
 				}
-				// only consider the worst error
-				if (ret_tmp != 0 && ret_tmp < ret) {
-					ret = ret_tmp;
+				else {
+					ret = -3;
 				}
 			}
-		} else {
-			ret = -3;
+			// only consider the worst error
+			if (ret_tmp != 0 && ret_tmp < ret) {
+				ret = ret_tmp;
+			}
 		}
+
 		if (ret < 0) {
 			if (ret == -2)
 				res.error_code.val =

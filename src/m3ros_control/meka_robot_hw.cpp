@@ -130,7 +130,7 @@ void MekaRobotHW::write() {
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
 
         // if the group is not disabled
-        if (it->second.ctrl_state != STATE_DISABLE)
+        if (it->second.enabled)
         {
             // in ready state, override joint_commands to freeze movements
             if (it->second.ctrl_state == STATE_READY) {
@@ -276,58 +276,60 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
         switch (state_cmd) {
           
         case STATE_CMD_DISABLE:
+            it->second.enabled = false;
             if (it->second.ctrl_state == STATE_RUNNING) {
                 //switch controller off
                 m3rt::M3_INFO("%s: You should switch controllers off !\n",
                         group_name.c_str());
             }
-            if (it->second.ctrl_state != STATE_DISABLE) {
-                m3rt::M3_INFO("%s: Disabled\n", group_name.c_str());
+            if (it->second.ctrl_state != STATE_ESTOP) {
+                m3rt::M3_INFO("%s: Disabled but in ctrl state Standby \n", group_name.c_str());
+                it->second.ctrl_state = STATE_STANDBY;
             }
-            it->second.ctrl_state = STATE_DISABLE;
             it->second.frozen = false;
             it->second.allow_running = false;
             break;
-        
+
         case STATE_CMD_ENABLE:
-            if (it->second.ctrl_state == STATE_DISABLE) {
-                it->second.ctrl_state = STATE_ESTOP;
+            if (!it->second.enabled) {
+                it->second.enabled = true;
                 it->second.frozen = false;
                 it->second.allow_running = false;
             }
             break;
-            
+
         case STATE_CMD_ESTOP:
-            if (it->second.ctrl_state != STATE_DISABLE)
+            if (it->second.enabled)
             {
                 if (it->second.ctrl_state == STATE_RUNNING) {
                     //switch controller off
                     m3rt::M3_INFO("%s: You should switch controllers off !\n",
                             group_name.c_str());
                 }
-                if (it->second.ctrl_state != STATE_ESTOP) {
-                    m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
-                }
-
-                it->second.ctrl_state = STATE_ESTOP;
-                it->second.frozen = false;
-                it->second.allow_running = false;
             }
+
+            if (it->second.ctrl_state != STATE_ESTOP) {
+                m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
+            }
+
+            it->second.ctrl_state = STATE_ESTOP;
+            it->second.frozen = false;
+            it->second.allow_running = false;
             break;
 
         case STATE_CMD_STOP:
-            if (it->second.ctrl_state != STATE_DISABLE)
-            {
-                if (it->second.ctrl_state == STATE_RUNNING)
-                    it->second.allow_running = false;
-                it->second.ctrl_state = STATE_STANDBY;
+
+            if (it->second.ctrl_state == STATE_RUNNING)
+                it->second.allow_running = false;
+            it->second.ctrl_state = STATE_STANDBY;
+            if (it->second.enabled)
                 m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
-                it->second.frozen = false;
-            }
+            it->second.frozen = false;
+
             break;
 
         case STATE_CMD_FREEZE:
-            if (it->second.ctrl_state != STATE_DISABLE)
+            if (it->second.enabled)
             {
                 if (it->second.ctrl_state == STATE_RUNNING)
                     it->second.allow_running = false;
@@ -343,7 +345,7 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             break;
 
         case STATE_CMD_START:
-            if (it->second.ctrl_state != STATE_DISABLE)
+            if (it->second.enabled)
             {
                 if (it->second.ctrl_state != STATE_RUNNING) {
                     // cannot go to run if previously in e-stop
@@ -399,7 +401,10 @@ void MekaRobotHW::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
     size_t i = 0;
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
         msg.group_name[i] = it->first;
-        msg.state[i] = it->second.ctrl_state;
+        if (it->second.enabled)
+            msg.state[i] = it->second.ctrl_state;
+        else
+            msg.state[i] = STATE_DISABLE;
         ++i;
     }
 }
@@ -407,7 +412,12 @@ void MekaRobotHW::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
 int MekaRobotHW::getCtrlState(const string group_name) {
     map_it_t it = chain_map_.find(group_name);
     if (it != chain_map_.end())
-        return it->second.ctrl_state;
+    {
+        if (it->second.enabled)
+            return it->second.ctrl_state;
+        else
+            return STATE_DISABLE;
+    }
     else
         return 0;
 }

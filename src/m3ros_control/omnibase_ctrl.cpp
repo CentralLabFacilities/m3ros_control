@@ -400,7 +400,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		BASE_CTRL_MODE mode) :
 		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
 		sys(NULL), ros_nh_ptr_(NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_ESTOP),
-		hst(-1), ctrl_mode(mode) {
+		enabled(true), hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
 	assert(obase_shm_shr_ptr != NULL);
@@ -531,8 +531,11 @@ void OmnibaseCtrl::init_sds() {
 
 void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
     //always last element. change when integrate omnibasectrl in mekarobothw
-	msg.group_name.back() = name;
-    msg.state.back() = ctrl_state;
+    msg.group_name.back() = name;
+    if (enabled)
+        msg.state.back() = ctrl_state;
+    else
+        msg.state.back() = STATE_DISABLE;
 }
 
 int OmnibaseCtrl::changeState(const int state_cmd) {
@@ -542,27 +545,32 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
     	ret = -3;
     } else {
         switch (state_cmd) {
+            
             case STATE_CMD_DISABLE:
+                enabled = false;
                 if (ctrl_state == STATE_RUNNING) {
                   disable_ros2sds();
                   m3rt::M3_INFO("%s: You should switch controllers off !\n", name.c_str());
                 }
                 
-                if (ctrl_state != STATE_DISABLE) {
-                    m3rt::M3_INFO("%s: Disabled\n", name.c_str());
+                if (ctrl_state != STATE_ESTOP) {
+                    m3rt::M3_INFO("%s: Disabled but in ctrl state Standby \n", name.c_str());
+                    ctrl_state = STATE_STANDBY;
                 }
-                ctrl_state = STATE_DISABLE;
                 break;
           
             case STATE_CMD_ENABLE:
-                if (trl_state == STATE_DISABLE) {
-                    ctrl_state = STATE_ESTOP;
+                if (!enabled) {
+                    enabled = true;
                 }
                 break;
 
             case STATE_CMD_ESTOP:
-                if (ctrl_state == STATE_RUNNING) {
-                    disable_ros2sds();
+                if (enabled)
+                {
+                    if (ctrl_state == STATE_RUNNING) {
+                        disable_ros2sds();
+                    }
                 }
                 if (ctrl_state != STATE_ESTOP) {
                     m3rt::M3_INFO("%s: ESTOP detected\n", name.c_str());
@@ -574,29 +582,36 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
                   disable_ros2sds();
                 }
                 ctrl_state = STATE_STANDBY;
-                m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
+                if (enabled)
+                    m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
                 break;
             case STATE_CMD_FREEZE: //no freeze for base.
-                if (ctrl_state == STATE_ESTOP)
-                    ret = -3;
-                else {
-                	disable_ros2sds();
-                    ctrl_state = STATE_STANDBY;
-                    m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
+                if (enabled)
+                {
+                    if (ctrl_state == STATE_ESTOP)
+                        ret = -3;
+                    else {
+                        disable_ros2sds();
+                        ctrl_state = STATE_STANDBY;
+                        m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
+                    }
                 }
                 break;
             case STATE_CMD_START:
-                if (ctrl_state != STATE_RUNNING) {
-                    // cannot go to run if previously in e-stop
-                    // go to standby first
-                    if (ctrl_state == STATE_ESTOP) {
-                        ret = -3;
+                if (enabled)
+                {
+                    if (ctrl_state != STATE_RUNNING) {
+                        // cannot go to run if previously in e-stop
+                        // go to standby first
+                        if (ctrl_state == STATE_ESTOP) {
+                            ret = -3;
+                            break;
+                        }
+                        enable_ros2sds();
+                        ctrl_state = STATE_RUNNING;
+                        m3rt::M3_INFO("%s: putting in running state\n ", name.c_str());
                         break;
                     }
-                    enable_ros2sds();
-                    ctrl_state = STATE_RUNNING;
-                    m3rt::M3_INFO("%s: putting in running state\n ", name.c_str());
-                    break;
                 }
         }
     }

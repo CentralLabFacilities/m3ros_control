@@ -60,6 +60,7 @@ private:
     bool running;
     std::string name, node_name;
     int ctrl_state;
+    bool enabled;
     long hst;
     BASE_CTRL_MODE ctrl_mode;
 
