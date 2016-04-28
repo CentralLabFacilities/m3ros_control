@@ -468,17 +468,10 @@ void OmnibaseCtrl::disable_ros2sds() {
 
 void OmnibaseCtrl::shutdown() {
 	if (hst) {
-	    disable_ros2sds();
-	    changeState(STATE_ESTOP);
 		sys_thread_end = true;
-		usleep(1250000);
-		if (sys_thread_active.load())
-			m3rt::M3_ERR("Real-time thread did not shutdown correctly or was never running...\n");
-		else {
-			hst = 0;
-			rt_shm_free(nam2num(MEKA_ODOM_SHM));
-			m3rt::M3_INFO("Success in removing RT thread\n");
-		}
+		rt_thread_join(hst);
+		rt_shm_free(nam2num(MEKA_ODOM_SHM));
+		hst = -1;
 	}
 
 	switch (ctrl_mode) {

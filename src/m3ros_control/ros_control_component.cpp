@@ -150,9 +150,6 @@ RosControlComponent::~RosControlComponent() {
 	if (cb_queue_ptr != NULL)
 		delete cb_queue_ptr;
 
-	if (state_mutex_ != NULL)
-		rt_sem_delete(state_mutex_);
-
 }
 
 google::protobuf::Message* RosControlComponent::GetCommand() {
@@ -469,6 +466,11 @@ void RosControlComponent::RosShutdown() {
 	//if (spinner_ptr_ != NULL)
 	//    spinner_ptr_->stop();
 
+	if (obase_ptr_->is_running()) {
+		m3rt::M3_INFO("Shutting down omnibase control...\n");
+		obase_ptr_->shutdown();
+	}
+
 	spinner_running_ = false;
 	if (rc) {
 		m3rt::M3_INFO("Waiting for RT spinner to stop...\n");
@@ -482,10 +484,6 @@ void RosControlComponent::RosShutdown() {
 		mrc = -1;
 	}
 
-	if (obase_ptr_->is_running()) {
-		m3rt::M3_INFO("Shutting down omnibase control...\n");
-		obase_ptr_->shutdown();
-	}
 
 	m3rt::M3_INFO("Shutting down serviceserver...\n");
 	srv_.shutdown();
