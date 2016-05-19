@@ -80,12 +80,12 @@ link_directories(${YAMLCPP_LIBRARY_DIRS})
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-#catkin_package(
-#   INCLUDE_DIRS include
+catkin_package(
+   INCLUDE_DIRS include
 #   LIBRARIES ros_control_rtai
-#   CATKIN_DEPENDS roscpp controller_manager hardware_interface controller_interface #control_toolbox
+   CATKIN_DEPENDS roscpp controller_manager hardware_interface controller_interface  control_toolbox realtime_tools   m3meka_msgs nav_msgs tf
 #   #DEPENDS boost ...
-#)
+)
 
 include_directories(
   ${INCLUDE_DIRS} 
@@ -107,4 +107,12 @@ add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
+
+install(DIRECTORY launch robot_config config
+     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(TARGETS ${PROJECT_NAME} 
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
