@@ -11,9 +11,6 @@ extern "C"
 #include <rtai_sem.h>
 }
 
-////////// M3
-#include <m3/vehicles/omnibase_shm_sds.h>
-
 ////////// M3RT
 #include <m3rt/base/component.h>
 #include <m3rt/base/component_shm.h>
@@ -35,6 +32,7 @@ extern "C"
 #include <hardware_interface/hardware_interface.h>
 
 #include "m3ros_control/meka_robot_hw.h"
+#include "m3ros_control/omnibase_ctrl.h"
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -44,8 +42,8 @@ extern "C"
 static int tmp_dt_status_;
 static int tmp_dt_cmd_;
 
-static long long start_dt_status_, end_dt_status_, elapsed_dt_status_;
-static long long start_dt_cmd_, end_dt_cmd_, elapsed_dt_cmd_;
+//static long long start_dt_status_, end_dt_status_, elapsed_dt_status_;
+//static long long start_dt_cmd_, end_dt_cmd_, elapsed_dt_cmd_;
 
 #ifndef NDEBUG
 #define TIME_ACTIVE 1
@@ -83,10 +81,11 @@ public:
     google::protobuf::Message* GetParam();
 
     SEM *state_mutex_;
-    bool spinner_running_;
-    bool was_estop_;
-
     ros::CallbackQueue* cb_queue_ptr; // Used to separate this node queue from the global one
+
+    bool was_estop_;
+    bool spinner_running_;
+
 
 protected:
     bool LinkDependentComponents();
@@ -102,11 +101,11 @@ protected:
 
     M3BaseStatus* GetBaseStatus();
 
-    bool RosInit(m3::M3Humanoid* bot, m3::M3JointZLift* lift);
+    bool RosInit();
     void RosShutdown();
 
 private:
-    std::string bot_name_, zlift_name_, pwr_name_, hw_interface_mode_;
+    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, hw_interface_mode_;
 
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
@@ -121,16 +120,20 @@ private:
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
     m3::M3Pwr* pwr_shr_ptr_;
-    M3Sds* sys; //dunno why this is not in m3 namespace..
+    m3::M3Omnibase* obase_shr_ptr_;
+    m3::M3OmnibaseShm* obase_shm_shr_ptr_;
+    m3::M3JointArray* obase_ja_shr_ptr_;
 
-    long rc,mrc,hst;
+    long rc,mrc;
     ros::Duration period_;
-    ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_, *ros_nh_ptr3_;
+    ros::NodeHandle* ros_nh_ptr_, *ros_nh_ptr2_;
     ros::ServiceServer srv_;
     ros::AsyncSpinner* spinner_ptr_; // Used to keep alive the ros services in the controller manager
     realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates> *realtime_pub_ptr_;
 
     MekaRobotHW* hw_ptr_;
+    OmnibaseCtrl* obase_ptr_;
+
     controller_manager::ControllerManager* cm_ptr_;
     enum
     {

@@ -1,3 +1,12 @@
+/*
+ * meka_robot_hw.cpp
+ *
+ *  refactored on: Dec 18, 2015
+ *      Author: plueckin
+ *  
+ *  Author: Guillaume Walck 2014
+ *  derived from Antoine's Horau original work
+ */
 
 #include <m3/robots/humanoid.h>
 #include <m3/hardware/joint_zlift.h>
@@ -15,17 +24,23 @@
 #include <stdio.h>
 
 // master states
-#define STATE_ESTOP     0
+
 #define STATE_UNKNOWN   0
-#define STATE_STANDBY   1
-#define STATE_READY     2
-#define STATE_RUNNING   3
+#define STATE_DISABLE   1
+#define STATE_ENABLE    2
+#define STATE_ESTOP     3
+#define STATE_STANDBY   4
+#define STATE_READY     5
+#define STATE_RUNNING   6
 
 // state transitions command
-#define STATE_CMD_ESTOP     0
-#define STATE_CMD_STOP      1
-#define STATE_CMD_FREEZE    2
-#define STATE_CMD_START     3
+
+#define STATE_CMD_DISABLE   1
+#define STATE_CMD_ENABLE    2
+#define STATE_CMD_ESTOP     3
+#define STATE_CMD_STOP      4
+#define STATE_CMD_FREEZE    5
+#define STATE_CMD_START     6
 
 namespace ros_control_component {
 
@@ -35,7 +50,7 @@ public:
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
             std::string hw_interface_mode);
 
-    ~MekaRobotHW() {};
+    virtual ~MekaRobotHW() {};
 
     void read();
 
@@ -101,9 +116,10 @@ private:
 
         Chain_(std::string name_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
                 int ctrl_state_ = STATE_ESTOP, bool frozen_ = false,
-                bool allow_running_ = false) :
+                bool allow_running_ = false, bool enabled_ = true) :
                 name(name_), ndof(ndof_), joint_mode(joint_mode_), ctrl_state(
-                        ctrl_state_), frozen(frozen_), allow_running(allow_running_) {
+                        ctrl_state_), frozen(frozen_), allow_running(allow_running_),
+                        enabled(enabled_) {
             values.resize(ndof);
             if (name == "zlift")
                 values[0].position = 0.30;
@@ -113,9 +129,10 @@ private:
         }
         Chain_(M3Chain chain_ref_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
                 int ctrl_state_ = STATE_ESTOP, bool frozen_ = false,
-                bool allow_running_ = false) :
+                bool allow_running_ = false, bool enabled_ = true) :
                 chain_ref(chain_ref_), ndof(ndof_), joint_mode(joint_mode_), ctrl_state(
-                        ctrl_state_), frozen(frozen_), allow_running(allow_running_) {
+                        ctrl_state_), frozen(frozen_), allow_running(allow_running_),
+                        enabled(enabled_) {
             name = getStringFromEnum(chain_ref);
             values.resize(ndof);
             if (name == "zlift")
@@ -152,6 +169,7 @@ private:
         bool frozen;
         bool allow_running;
         std::vector<joint_value_> values;
+        bool enabled;
     };
 
     typedef std::map<MekaRobotHW::Chain_::joint_mode_t, double> mirror_error_map_t;

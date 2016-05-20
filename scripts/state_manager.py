@@ -256,7 +256,7 @@ class MekaStateManager(object):
             for controller in resp.controller:
                 cname_split = controller.name.split("_")
                 if len(cname_split) > 1:
-                    if cname_split[0] in ["torso", "zlift", "head"]:
+                    if cname_split[0] in ["torso", "zlift", "head", "base"]:
                         if cname_split[0] not in self._controller_list:
                             self._controller_list[cname_split[0]]=[]
                         self._controller_list[cname_split[0]].append(controller.name)
