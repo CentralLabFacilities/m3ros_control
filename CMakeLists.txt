@@ -139,34 +139,38 @@ catkin_package(
 #   #DEPENDS boost ...
 )
 
+
+###############################################################################
+# Protobuff stuff
+#file(GLOB ControllerProtoFiles "${PROJECT_PROTO_DIR}/${PROJECT_NAME}/*.proto")
+#PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${CMAKE_CURRENT_BINARY_DIR}/src/m3ros_control ${ControllerProtoFiles})
+#add_custom_target(${PROJECT_NAME}_cpp_protobuf_output  ALL DEPENDS ${ProtoSources}) # force the generation
+#PROTOBUF_GENERATE_PYTHON(PySources ${PROJECT_PYTHON_DIR}/${PROJECT_NAME} ${ControllerProtoFiles})
+#add_custom_target(${PROJECT_NAME}_python_protobuf_output ALL DEPENDS ${PySources}) # force the generation
+#execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}/${PROJECT_NAME}) # To create a directory at build time
+
+add_subdirectory(src/m3ros_control)
 ###############################################################################
 # Include directories
 include_directories(
     ${PROJECT_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/src # Include this directory for the generated protobufs headers
     ${INCLUDE_DIRS}
+    ${ProtoHeaders}
 )
 
-
-###############################################################################
-# Protobuff stuff
-file(GLOB ControllerProtoFiles "${PROJECT_PROTO_DIR}/${PROJECT_NAME}/*.proto")
-PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${CMAKE_CURRENT_BINARY_DIR} ${ControllerProtoFiles})
-add_custom_target(${PROJECT_NAME}_cpp_protobuf_output  ALL DEPENDS ${ProtoSources}) # force the generation
-PROTOBUF_GENERATE_PYTHON(PySources ${PROJECT_PYTHON_DIR}/${PROJECT_NAME} ${ControllerProtoFiles})
-add_custom_target(${PROJECT_NAME}_python_protobuf_output ALL DEPENDS ${PySources}) # force the generation
-execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}/${PROJECT_NAME}) # To create a directory at build time
 
 ## Declare a cpp executable
 add_library(${PROJECT_NAME} src/m3ros_control/ros_control_component.cpp
                             src/m3ros_control/meka_robot_hw.cpp
                             src/m3ros_control/omnibase_ctrl.cpp
                             src/m3ros_control/factory_proxy.cpp
-                            src/m3ros_control/ros_control_component.pb.cc)
+ 			    ${ProtoSources}
+                            )
 add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${LIBRARIES} )
 
 install(TARGETS ${PROJECT_NAME} 
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
