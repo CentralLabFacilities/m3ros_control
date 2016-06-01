@@ -129,9 +129,17 @@ void MekaRobotHW::write() {
 
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
 
-        // if the group is not disabled
-        if (it->second.enabled)
+        // if the group is not disabled or got disabled while running
+        if (it->second.enabled || (!it->second.enabled && it->second.ctrl_state > STATE_STANDBY) )
         {
+            // did a disable occur when in a running /ready state ?
+            if (it->second.ctrl_state > STATE_STANDBY)
+            {
+                // directly force the state to standby
+                it->second.ctrl_state = STATE_STANDBY;
+                // and continue to permit to set the low-level meka controller to a safe state
+            }
+          
             // in ready state, override joint_commands to freeze movements
             if (it->second.ctrl_state == STATE_READY) {
                 it->second.joint_mode = Chain_::joint_mode_t::POSITION; //change this!
@@ -284,7 +292,8 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             }
             if (it->second.ctrl_state != STATE_ESTOP) {
                 m3rt::M3_INFO("%s: Disabled but in ctrl state Standby \n", group_name.c_str());
-                it->second.ctrl_state = STATE_STANDBY;
+                // leave the write loop set to state_standby if not already set
+                // it->second.ctrl_state = STATE_STANDBY;
             }
             it->second.frozen = false;
             it->second.allow_running = false;

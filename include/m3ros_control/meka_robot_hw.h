@@ -116,7 +116,7 @@ private:
 
         Chain_(std::string name_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
                 int ctrl_state_ = STATE_ESTOP, bool frozen_ = false,
-                bool allow_running_ = false, bool enabled_ = true) :
+                bool allow_running_ = false, bool enabled_ = false) :
                 name(name_), ndof(ndof_), joint_mode(joint_mode_), ctrl_state(
                         ctrl_state_), frozen(frozen_), allow_running(allow_running_),
                         enabled(enabled_) {
@@ -129,7 +129,7 @@ private:
         }
         Chain_(M3Chain chain_ref_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
                 int ctrl_state_ = STATE_ESTOP, bool frozen_ = false,
-                bool allow_running_ = false, bool enabled_ = true) :
+                bool allow_running_ = false, bool enabled_ = false) :
                 chain_ref(chain_ref_), ndof(ndof_), joint_mode(joint_mode_), ctrl_state(
                         ctrl_state_), frozen(frozen_), allow_running(allow_running_),
                         enabled(enabled_) {
