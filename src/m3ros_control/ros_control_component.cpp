@@ -46,8 +46,8 @@ void *ros_async_spinner(void * arg) {
 
 	while (ros_comp_ptr->spinner_running_) {
 		// call all the cb from the callback queue
-		ros_comp_ptr->cb_queue_ptr->callAvailable(ros::WallDuration());
-		rt_sleep(nano2count(500000000));
+		ros_comp_ptr->cb_queue_ptr->callOne(ros::WallDuration(0));
+		rt_sleep(nano2count(200000000));
 	}
 
 	// destroy the mutex
@@ -84,7 +84,7 @@ void *rosmain_async_spinner(void * arg) {
 
 	while (ros_comp_ptr->spinner_running_) {
 		// call all the cb from the callback queue
-		ros::getGlobalCallbackQueue()->callAvailable(ros::WallDuration(0));
+		ros::getGlobalCallbackQueue()->callOne(ros::WallDuration(0));
 		rt_sleep(nano2count(100000000));
 	}
 
