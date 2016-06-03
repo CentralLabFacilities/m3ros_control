@@ -130,10 +130,10 @@ void MekaRobotHW::write() {
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
 
         // if the group is not disabled or got disabled while running
-        if (it->second.enabled || (!it->second.enabled && it->second.ctrl_state > STATE_STANDBY) )
+        if (it->second.enabled || it->second.ctrl_state > STATE_STANDBY)
         {
             // did a disable occur when in a running /ready state ?
-            if (it->second.ctrl_state > STATE_STANDBY)
+            if (!it->second.enabled && it->second.ctrl_state > STATE_STANDBY)
             {
                 // directly force the state to standby
                 it->second.ctrl_state = STATE_STANDBY;
