@@ -64,9 +64,9 @@ void *ros_async_spinner(void * arg) {
 // has priority 2 lower than the current task
 void *rosmain_async_spinner(void * arg) {
 	RosControlComponent * ros_comp_ptr = (RosControlComponent *) arg;
-	int prio = std::max(1, ros_comp_ptr->GetPriority() - 2);
+	int prio = std::max(2, ros_comp_ptr->GetPriority() + 2);
 
-	m3rt::M3_INFO("Starting main async spinner thread with priority %d.\n",
+	m3rt::M3_INFO("Starting main ros async spinner thread with priority %d.\n",
 			prio);
 
 	RT_TASK *task;
