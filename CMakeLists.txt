@@ -20,8 +20,8 @@ set(PROJECT_INCLUDE_DIR ${PROJECT_ROOT}/include)
 set(PROJECT_PROTO_DIR ${PROJECT_ROOT}/proto)
 set(PROJECT_SRC_DIR ${PROJECT_ROOT}/src)
 set(PROJECT_INSTALL_BIN ${PROJECT_ROOT}/bin)
+set(PROJECT_INSTALL_LIB ${CMAKE_INSTALL_PREFIX}/lib)
 set(PROJECT_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_ROOT}/bin)
-set(PROJECT_INSTALL_LIB ${PROJECT_ROOT}/lib)
 set(PROJECT_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_ROOT}/lib)
 set(PROJECT_PYTHON_DIR ${PROJECT_ROOT}/python)
 
@@ -33,6 +33,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_OUTPUT_DIRECTORY})
 find_package(catkin QUIET)
 if(catkin_FOUND)
 #  catkin_python_setup()
+else(catkin_FOUND)
+    
 endif(catkin_FOUND)
 
 set(CMAKE_CXX_FLAGS "-Wall -std=c++0x")
@@ -161,16 +163,17 @@ include_directories(
 
 
 ## Declare a cpp executable
+message("protosource folder" ${ProtoSources})
 add_library(${PROJECT_NAME} src/m3ros_control/ros_control_component.cpp
                             src/m3ros_control/meka_robot_hw.cpp
                             src/m3ros_control/omnibase_ctrl.cpp
                             src/m3ros_control/factory_proxy.cpp
- 			    ${ProtoSources}
+                            ${ProtoSources}
                             )
 add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES} )
+target_link_libraries(${PROJECT_NAME} ${LIBRARIES} ${ProtoHeaders} )
 
 install(TARGETS ${PROJECT_NAME} 
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
