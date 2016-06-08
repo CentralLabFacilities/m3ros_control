@@ -63,8 +63,9 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
         for (size_t i = 0; i < vals->size(); i++) {
             registerHandles(vals->at(i).name, &vals->at(i).position,
                     &vals->at(i).velocity, &vals->at(i).effort,
+                    &vals->at(i).stiffness,
                     &vals->at(i).pos_cmd, &vals->at(i).vel_cmd,
-                    &vals->at(i).eff_cmd);
+                    &vals->at(i).eff_cmd, &vals->at(i).stiff_cmd);
 
         }
     }
@@ -73,6 +74,7 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
     registerInterface(&pj_interface_);
     registerInterface(&ej_interface_);
     registerInterface(&vj_interface_);
+    registerInterface(&jk_interface_);
 
 }
 
@@ -156,7 +158,7 @@ void MekaRobotHW::write() {
             vector<joint_value_> *vals = &it->second.values;
 
             if (it->first == "zlift") {
-                zlift_shr_ptr_->SetDesiredStiffness(s_);
+                zlift_shr_ptr_->SetDesiredStiffness(std::min(1.0, std::max(0.0, vals->at(0).stiff_cmd)) * s_);
                 zlift_shr_ptr_->SetSlewRate(
                         s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
                 switch (it->second.joint_mode) {
@@ -194,7 +196,7 @@ void MekaRobotHW::write() {
                 if (t_ || h_) {
                     if (i == 2 && t_) //j1 slave is a copy of j1, do not write j1 slave value to the actuator
                         break;
-                    bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
+                    bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, std::min(1.0, std::max(0.0, vals->at(i).stiff_cmd)) * s_);
                     bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i,
                             s_);
                     switch (it->second.joint_mode) {
@@ -221,7 +223,7 @@ void MekaRobotHW::write() {
                     }
                     continue;
                 }
-                bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, s_);
+                bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, std::min(1.0, std::max(0.0, vals->at(i).stiff_cmd)) * s_);
                 bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i, s_);
 
                 if (ha_ && it->second.ctrl_state < STATE_READY)
@@ -437,8 +439,8 @@ int MekaRobotHW::getNbGroup() {
 
 //---private functions---
 
-void MekaRobotHW::registerHandles(string name, double* pos, double* vel,
-        double* eff, double* poscmd, double* effcmd, double* velcmd) {
+void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double* stiffness,
+        double* eff, double* poscmd, double* effcmd, double* velcmd, double* stiffcmd) {
     js_interface_.registerHandle(JointStateHandle(name, pos, vel, eff));
     pj_interface_.registerHandle(
             JointHandle(js_interface_.getHandle(name), poscmd));
@@ -446,6 +448,11 @@ void MekaRobotHW::registerHandles(string name, double* pos, double* vel,
             JointHandle(js_interface_.getHandle(name), effcmd));
     vj_interface_.registerHandle(
             JointHandle(js_interface_.getHandle(name), velcmd));
+    // not an additional joint, just an access to the stiffness with a different joint name
+    // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
+    jk_interface_.registerHandle(
+            JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness),
+                        stiffcmd));
 }
 
 void MekaRobotHW::freezeJoints(string group_name) {

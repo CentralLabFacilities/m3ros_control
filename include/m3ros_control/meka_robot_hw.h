@@ -84,24 +84,29 @@ private:
     hardware_interface::PositionJointInterface pj_interface_;
     hardware_interface::EffortJointInterface ej_interface_;
     hardware_interface::VelocityJointInterface vj_interface_;
+    // is not a second position interface but an access to the stiffness as a position joint interface
+    // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
+    hardware_interface::PositionJointInterface jk_interface_;
 
     bool converged;
     double epsilon;
     int printcount;
 
-    void registerHandles(std::string name, double* pos, double* vel,
-            double* eff, double* poscmd, double* effcmd, double* velcmd);
+    void registerHandles(std::string name, double* pos, double* vel, double* stiffness,
+            double* eff, double* poscmd, double* effcmd, double* velcmd, double* stiffcmd);
 
     struct joint_value_ {
         std::string name;
         double position;
         double velocity;
         double effort;
+        double stiffness;
         double pos_cmd;
         double eff_cmd;
         double vel_cmd;
         double frz_cmd;
         double err;
+        double stiff_cmd;
     };
 
     struct Chain_ {
@@ -125,6 +130,7 @@ private:
                 values[0].position = 0.30;
             for (int i = 0; i < ndof; i++) {
                 values[i].name = name + "_j" + std::to_string(i);
+                values[i].stiff_cmd = 1.0;
             }
         }
         Chain_(M3Chain chain_ref_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
@@ -139,6 +145,7 @@ private:
                 values[0].position = 0.30;
             for (int i = 0; i < ndof; i++) {
                 values[i].name = name + "_j" + std::to_string(i);
+                values[i].stiff_cmd = 1.0;
             }
         }
 
