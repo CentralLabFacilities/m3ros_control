@@ -128,6 +128,7 @@ private:
             for (int i = 0; i < ndof; i++) {
                 values[i].name = name + "_j" + std::to_string(i);
                 values[i].stiff_cmd = 1.0;
+                values[i].stiffness = 1.0;
             }
         }
         Chain_(M3Chain chain_ref_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
@@ -143,6 +144,7 @@ private:
             for (int i = 0; i < ndof; i++) {
                 values[i].name = name + "_j" + std::to_string(i);
                 values[i].stiff_cmd = 1.0;
+                values[i].stiffness = 1.0;
             }
         }
 
