@@ -84,9 +84,6 @@ private:
     hardware_interface::PositionJointInterface pj_interface_;
     hardware_interface::EffortJointInterface ej_interface_;
     hardware_interface::VelocityJointInterface vj_interface_;
-    // is not a second position interface but an access to the stiffness as a position joint interface
-    // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
-    hardware_interface::PositionJointInterface jk_interface_;
 
     bool converged;
     double epsilon;

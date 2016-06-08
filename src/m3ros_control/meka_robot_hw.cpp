@@ -74,7 +74,6 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
     registerInterface(&pj_interface_);
     registerInterface(&ej_interface_);
     registerInterface(&vj_interface_);
-    registerInterface(&jk_interface_);
 
 }
 
@@ -450,7 +449,7 @@ void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double*
             JointHandle(js_interface_.getHandle(name), velcmd));
     // not an additional joint, just an access to the stiffness with a different joint name
     // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
-    jk_interface_.registerHandle(
+    pj_interface_.registerHandle(
             JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness),
                         stiffcmd));
 }
