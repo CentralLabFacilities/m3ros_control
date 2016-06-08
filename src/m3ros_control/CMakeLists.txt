@@ -7,7 +7,5 @@ PROTOBUF_GENERATE_PYTHON(PySources ${PROJECT_PYTHON_DIR}/${PROJECT_NAME} ${Contr
 add_custom_target(${PROJECT_NAME}_python_protobuf_output ALL DEPENDS ${PySources}) # force the generation
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}/${PROJECT_NAME}) # To create a directory at build time
 set(ProtoSources ${ProtoSources} PARENT_SCOPE)
-message("generated protosource folder" ${ProtoSources})
-
 
 

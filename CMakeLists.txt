@@ -19,7 +19,8 @@ set(CMAKE_MODULE_PATH "${PROJECT_ROOT}/cmake/Modules/" $ENV{M3_CMAKE_MODULES} ${
 set(PROJECT_INCLUDE_DIR ${PROJECT_ROOT}/include)
 set(PROJECT_PROTO_DIR ${PROJECT_ROOT}/proto)
 set(PROJECT_SRC_DIR ${PROJECT_ROOT}/src)
-set(PROJECT_INSTALL_BIN ${PROJECT_ROOT}/bin)
+#set(PROJECT_INSTALL_BIN ${PROJECT_ROOT}/bin)
+set(PROJECT_INSTALL_LIB ${PROJECT_ROOT}/lib)
 set(PROJECT_INSTALL_LIB ${CMAKE_INSTALL_PREFIX}/lib)
 set(PROJECT_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_ROOT}/bin)
 set(PROJECT_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_ROOT}/lib)
@@ -152,6 +153,8 @@ catkin_package(
 #execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_PYTHON_DIR}/${PROJECT_NAME}) # To create a directory at build time
 
 add_subdirectory(src/m3ros_control)
+set_source_files_properties(${ProtoSources} ${ProtoHeaders} PROPERTIES
+                            GENERATED TRUE)
 ###############################################################################
 # Include directories
 include_directories(
