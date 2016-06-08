@@ -99,7 +99,7 @@ RosControlComponent::RosControlComponent() :
 				0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
 				0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
 				NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL),
-				obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
+				obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), rc(0), mrc(0),
 				 ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(
 				NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), skip_loop_(
 				false), loop_cnt_(0), wait_sds_(true) {
@@ -466,10 +466,11 @@ void RosControlComponent::RosShutdown() {
 	//if (spinner_ptr_ != NULL)
 	//    spinner_ptr_->stop();
 
-	if (obase_ptr_->is_running()) {
-		m3rt::M3_INFO("Shutting down omnibase control...\n");
-		obase_ptr_->shutdown();
-	}
+	if (obase_ptr_ != NULL)
+		if (obase_ptr_->is_running()) {
+			m3rt::M3_INFO("Shutting down omnibase control...\n");
+			obase_ptr_->shutdown();
+		}
 
 	spinner_running_ = false;
 	if (rc) {
