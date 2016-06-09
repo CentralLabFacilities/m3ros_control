@@ -94,10 +94,39 @@ meka_roscontrol:
   #    - right_arm_j5_stiffness
   #    - right_arm_j6_stiffness
   #    
-  right_arm_stiffness_controller:
-    type: "position_controllers/JointPositionController"
-    joint: right_arm_j3_stiffness
-    
+  stiffness_controller:
+    type: "position_controllers/JointGroupPositionController"
+    joints:
+      - right_arm_j0_stiffness
+      - right_arm_j1_stiffness
+      - right_arm_j2_stiffness
+      - right_arm_j3_stiffness
+      - right_arm_j4_stiffness
+      - right_arm_j5_stiffness
+      - right_arm_j6_stiffness
+      - left_arm_j0_stiffness
+      - left_arm_j1_stiffness
+      - left_arm_j2_stiffness
+      - left_arm_j3_stiffness
+      - left_arm_j4_stiffness
+      - left_arm_j5_stiffness
+      - left_arm_j6_stiffness
+      - right_hand_j0_stiffness
+      - right_hand_j1_stiffness
+      - right_hand_j2_stiffness
+      - right_hand_j3_stiffness
+      - right_hand_j4_stiffness
+      - left_hand_j0_stiffness
+      - left_hand_j1_stiffness
+      - left_hand_j2_stiffness
+      - left_hand_j3_stiffness
+      - left_hand_j4_stiffness
+      - head_j0_stiffness
+      - head_j1_stiffness
+      - torso_j0_stiffness
+      - torso_j1_stiffness
+      - zlift_j0_stiffness
+
   right_arm_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:

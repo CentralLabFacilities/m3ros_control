@@ -18,7 +18,7 @@ ctrl_acceptable_mirror_error:
 preload_controllers:
   - joint_state_controller
   - right_arm_position_trajectory_controller
-  - right_arm_stiffness_controller
+  - stiffness_controller
   - left_arm_position_trajectory_controller
   - right_hand_position_trajectory_controller
   - left_hand_position_trajectory_controller
