@@ -66,7 +66,6 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
                     &vals->at(i).stiffness,
                     &vals->at(i).pos_cmd, &vals->at(i).vel_cmd,
                     &vals->at(i).eff_cmd, &vals->at(i).stiff_cmd);
-
         }
     }
 
@@ -85,6 +84,7 @@ void MekaRobotHW::read() {
             vals->at(0).position = mm2m(zlift_shr_ptr_->GetPos());
             vals->at(0).velocity = mm2m(zlift_shr_ptr_->GetPosDot());
             vals->at(0).effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
+            vals->at(0).stiffness = 1.0;
             continue;
         }
         bool t_ = false;
@@ -108,6 +108,7 @@ void MekaRobotHW::read() {
                 vals->at(i).effort = mm2m(
                         bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref, i)); // mNm -> Nm
             }
+            vals->at(i).stiffness = 1.0;
         }
     }
 }
@@ -438,10 +439,10 @@ int MekaRobotHW::getNbGroup() {
 
 //---private functions---
 
-void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double* stiffness,
-        double* eff, double* poscmd, double* effcmd, double* velcmd, double* stiffcmd) {
+void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double* eff, 
+    double* stiffness, double* poscmd, double* velcmd, double* effcmd, double* stiffcmd) {
     js_interface_.registerHandle(JointStateHandle(name, pos, vel, eff));
-    js_interface_.registerHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness));
+    //js_interface_.registerHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness));
     pj_interface_.registerHandle(
             JointHandle(js_interface_.getHandle(name), poscmd));
     ej_interface_.registerHandle(
@@ -450,8 +451,11 @@ void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double*
             JointHandle(js_interface_.getHandle(name), velcmd));
     // not an additional joint, just an access to the stiffness with a different joint name
     // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
+    //pj_interface_.registerHandle(
+     //       JointHandle(js_interface_.getHandle(name + std::string("_stiffness")), stiffcmd));
     pj_interface_.registerHandle(
-            JointHandle(js_interface_.getHandle(name + std::string("_stiffness")), stiffcmd));
+            JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness), 
+            stiffcmd));
 }
 
 void MekaRobotHW::freezeJoints(string group_name) {

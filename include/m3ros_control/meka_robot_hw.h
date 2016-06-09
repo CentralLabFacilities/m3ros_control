@@ -89,8 +89,8 @@ private:
     double epsilon;
     int printcount;
 
-    void registerHandles(std::string name, double* pos, double* vel, double* stiffness,
-            double* eff, double* poscmd, double* effcmd, double* velcmd, double* stiffcmd);
+    void registerHandles(std::string name, double* pos, double* vel, double* eff, 
+        double* stiffness, double* poscmd, double* velcmd, double* effcmd, double* stiffcmd);
 
     struct joint_value_ {
         std::string name;
