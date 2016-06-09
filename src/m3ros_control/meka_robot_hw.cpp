@@ -441,6 +441,7 @@ int MekaRobotHW::getNbGroup() {
 void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double* stiffness,
         double* eff, double* poscmd, double* effcmd, double* velcmd, double* stiffcmd) {
     js_interface_.registerHandle(JointStateHandle(name, pos, vel, eff));
+    js_interface_.registerHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness));
     pj_interface_.registerHandle(
             JointHandle(js_interface_.getHandle(name), poscmd));
     ej_interface_.registerHandle(
@@ -450,8 +451,7 @@ void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double*
     // not an additional joint, just an access to the stiffness with a different joint name
     // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
     pj_interface_.registerHandle(
-            JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness),
-                        stiffcmd));
+            JointHandle(js_interface_.getHandle(name + std::string("_stiffness")), stiffcmd));
 }
 
 void MekaRobotHW::freezeJoints(string group_name) {
