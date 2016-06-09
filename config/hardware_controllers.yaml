@@ -83,17 +83,21 @@ meka_roscontrol:
     action_monitor_rate: 20 # Defaults to 20
     #hold_trajectory_duration: 0 # Defaults to 0.5
 
+  #right_arm_stiffness_controller:
+  #  type: "position_controllers/JointGroupPositionController"
+  #  joints:
+  #    - right_arm_j0_stiffness
+  #    - right_arm_j1_stiffness
+  #    - right_arm_j2_stiffness
+  #    - right_arm_j3_stiffness
+  #    - right_arm_j4_stiffness
+  #    - right_arm_j5_stiffness
+  #    - right_arm_j6_stiffness
+  #    
   right_arm_stiffness_controller:
-    type: "position_controllers/JointGroupPositionController"
-    joints:
-      - right_arm_j0_stiffness
-      - right_arm_j1_stiffness
-      - right_arm_j2_stiffness
-      - right_arm_j3_stiffness
-      - right_arm_j4_stiffness
-      - right_arm_j5_stiffness
-      - right_arm_j6_stiffness
-
+    type: "position_controllers/JointPositionController"
+    joint: right_arm_j3_stiffness
+    
   right_arm_position_controller:
     type: "position_controllers/JointGroupPositionController"
     joints:
