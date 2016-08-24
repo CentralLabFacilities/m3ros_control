@@ -400,7 +400,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 		BASE_CTRL_MODE mode) :
 		obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL),
 		sys(NULL), ros_nh_ptr_(NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_ESTOP),
-		enabled(true), hst(-1), ctrl_mode(mode) {
+		enabled(false), hst(-1), ctrl_mode(mode) {
 
 	assert(obase_shr_ptr != NULL);
 	assert(obase_shm_shr_ptr != NULL);
