@@ -306,7 +306,7 @@ void RosControlComponent::StepStatus() {
 		if (!pwr_shr_ptr_->IsMotorPowerOn()) {
 			rt_sem_wait(state_mutex_);
 			hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
-			if (obase_ptr_ != NULL && obase_ptr_->is_running()) {
+			if (obase_ptr_->is_running()) {
 				obase_ptr_->changeState(STATE_CMD_ESTOP);
 			}
 			rt_sem_signal(state_mutex_);
@@ -366,9 +366,8 @@ void RosControlComponent::StepCommand() {
 		if (loop_cnt_ % 100 == 0) {
 			if (realtime_pub_ptr_->trylock()) {
 				hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-				if (obase_ptr_ != NULL) {
-                    obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-				}
+                obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+
 				realtime_pub_ptr_->unlockAndPublish();
 			}
 		}
@@ -430,11 +429,11 @@ bool RosControlComponent::RosInit() {
 				accept_force_);
 
 		// Create the Omnibase control interface
-		if(obase_shr_ptr_ != NULL && obase_shm_shr_ptr_ != NULL && obase_ja_shr_ptr_ != NULL) {
-            m3rt::M3_INFO("shared pointers set, starting omnibase control...\n");
-            obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_,
-                    obase_ja_shr_ptr_, ros_node_name);
-		}
+		
+        m3rt::M3_INFO("shared pointers set, starting omnibase control...\n");
+        obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_,
+                obase_ja_shr_ptr_, ros_node_name);
+		
 
 		// Create a realtime publisher for the state
 		realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<
@@ -470,11 +469,10 @@ void RosControlComponent::RosShutdown() {
 	//if (spinner_ptr_ != NULL)
 	//    spinner_ptr_->stop();
 
-	if (obase_ptr_ != NULL)
-		if (obase_ptr_->is_running()) {
-			m3rt::M3_INFO("Shutting down omnibase control...\n");
-			obase_ptr_->shutdown();
-		}
+    if (obase_ptr_->is_running()) {
+        m3rt::M3_INFO("Shutting down omnibase control...\n");
+        obase_ptr_->shutdown();
+    }
 
 	spinner_running_ = false;
 	if (rc) {
