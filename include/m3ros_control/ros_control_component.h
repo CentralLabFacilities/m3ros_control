@@ -106,7 +106,8 @@ protected:
 
 private:
     std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, hw_interface_mode_;
-
+    bool ctrl_obase_;
+    
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
     double accept_ang_pos_;
@@ -141,9 +142,6 @@ private:
     };
     bool skip_loop_;
     long long loop_cnt_;
-
-    bool wait_sds_;
-
 
     void PreLoadControllers();
     void UnloadControllers();

@@ -102,7 +102,7 @@ RosControlComponent::RosControlComponent() :
 				obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), rc(0), mrc(0),
 				 ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(NULL), realtime_pub_ptr_(
 				NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), skip_loop_(
-				false), loop_cnt_(0), wait_sds_(true) {
+				false), loop_cnt_(0) {
 	RegisterVersion("default", DEFAULT);
 }
 
@@ -111,7 +111,7 @@ RosControlComponent::~RosControlComponent() {
 	if (cm_ptr_ != NULL)
 		delete cm_ptr_;
 
-	if (obase_ptr_ != NULL)
+	if (ctrl_obase_ && obase_ptr_ != NULL)
 		delete obase_ptr_;
 
 	if (hw_ptr_ != NULL)
@@ -181,27 +181,30 @@ bool RosControlComponent::LinkDependentComponents() {
 				pwr_name_.c_str(), GetName().c_str());
 		return false;
 	}
-	obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
-	if (obase_shr_ptr_ == NULL) {
-		m3rt::M3_INFO("M3Omnibase component %s not found for component %s\n",
-				obase_name_.c_str(), GetName().c_str());
-		return false;
-	}
-	obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(
-			obase_shm_name_);
-	if (obase_shm_shr_ptr_ == NULL) {
-		m3rt::M3_INFO("M3OmnibaseShm component %s not found for component %s\n",
-				obase_shm_name_.c_str(), GetName().c_str());
-		return false;
-	}
-	obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(
-			obase_jointarray_name_);
-	if (obase_ja_shr_ptr_ == NULL) {
-		m3rt::M3_INFO("M3JointArray component %s not found for component %s\n",
-				obase_jointarray_name_.c_str(), GetName().c_str());
-		return false;
-	}
-
+	if(ctrl_obase_) {
+            obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
+            if (obase_shr_ptr_ == NULL) {
+                    m3rt::M3_INFO("M3Omnibase component %s not found for component %s\n",
+                                    obase_name_.c_str(), GetName().c_str());
+                    return false;
+            }
+            obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(
+                            obase_shm_name_);
+            if (obase_shm_shr_ptr_ == NULL) {
+                    m3rt::M3_INFO("M3OmnibaseShm component %s not found for component %s\n",
+                                    obase_shm_name_.c_str(), GetName().c_str());
+                    return false;
+            }
+            obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(
+                            obase_jointarray_name_);
+            if (obase_ja_shr_ptr_ == NULL) {
+                    m3rt::M3_INFO("M3JointArray component %s not found for component %s\n",
+                                    obase_jointarray_name_.c_str(), GetName().c_str());
+                    return false;
+            }
+        }
+        
+        m3rt::M3_INFO("LinkDependentComponents success!");
 	return true;
 }
 
@@ -227,6 +230,7 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename) {
 	doc["humanoid"] >> bot_name_;
 	doc["zlift"] >> zlift_name_;
 	doc["pwr_component"] >> pwr_name_;
+        doc["m3ros_obase_ctrl"] >> ctrl_obase_;
 	doc["omnibase"] >> obase_name_;
 	doc["omnibase_shm"] >> obase_shm_name_;
 	doc["omnibase_jointarray"] >> obase_jointarray_name_;
@@ -306,7 +310,7 @@ void RosControlComponent::StepStatus() {
 		if (!pwr_shr_ptr_->IsMotorPowerOn()) {
 			rt_sem_wait(state_mutex_);
 			hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
-			if (obase_ptr_->is_running()) {
+			if (ctrl_obase_ && obase_ptr_->is_running()) {
 				obase_ptr_->changeState(STATE_CMD_ESTOP);
 			}
 			rt_sem_signal(state_mutex_);
@@ -316,17 +320,12 @@ void RosControlComponent::StepStatus() {
 				was_estop_ = false;
 				rt_sem_wait(state_mutex_);
 				hw_ptr_->changeStateAll(STATE_CMD_STOP);
-				if (obase_ptr_ != NULL && obase_ptr_->is_running()) {
+				if (ctrl_obase_ && obase_ptr_ != NULL && obase_ptr_->is_running()) {
 					obase_ptr_->changeState(STATE_CMD_STOP);
 				}
 				rt_sem_signal(state_mutex_);
 			}
 		}
-
-		//check every 100 loops whether obase rt thread is still running. if not, shut it down
-		/*if (loop_cnt_ % 100 == 0 && obase_ptr_->is_running() && obase_ptr_->is_sds_ended()) {
-		 obase_ptr_->shutdown();
-		 }*/
 
 		// controller manager update
 		// DO  NOT USE ros::Time::now();
@@ -366,8 +365,8 @@ void RosControlComponent::StepCommand() {
 		if (loop_cnt_ % 100 == 0) {
 			if (realtime_pub_ptr_->trylock()) {
 				hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-                obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-
+                                if(ctrl_obase_)                                    
+                                    obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
 				realtime_pub_ptr_->unlockAndPublish();
 			}
 		}
@@ -429,15 +428,12 @@ bool RosControlComponent::RosInit() {
 				accept_force_);
 
 		// Create the Omnibase control interface
-		
-        m3rt::M3_INFO("shared pointers set, starting omnibase control...\n");
-        obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_,
-                obase_ja_shr_ptr_, ros_node_name);
-		
-
+                if(ctrl_obase_) {
+                    m3rt::M3_INFO("shared pointers set, starting omnibase control...\n");
+                    obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_, obase_ja_shr_ptr_, ros_node_name);
+                }
 		// Create a realtime publisher for the state
-		realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<
-				m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
+		realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state", 4);
 		realtime_pub_ptr_->msg_.group_name.resize(hw_ptr_->getNbGroup() + 1); //+1 for base
 		realtime_pub_ptr_->msg_.state.resize(hw_ptr_->getNbGroup() + 1);
 
@@ -469,7 +465,7 @@ void RosControlComponent::RosShutdown() {
 	//if (spinner_ptr_ != NULL)
 	//    spinner_ptr_->stop();
 
-    if (obase_ptr_->is_running()) {
+    if (ctrl_obase_ && obase_ptr_->is_running()) {
         m3rt::M3_INFO("Shutting down omnibase control...\n");
         obase_ptr_->shutdown();
     }
@@ -519,8 +515,11 @@ bool RosControlComponent::changeStateCallback(
 			//special handling of base for now...
 			if (req.command.group_name[i] == "base") {
 				rt_sem_wait(this->state_mutex_);
-				ret_tmp = obase_ptr_->changeState(req.command.state[i]);
-				rt_sem_signal(this->state_mutex_);
+				if(ctrl_obase_)
+                                    ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+				else
+                                    ret_tmp = STATE_CMD_DISABLE;
+                                rt_sem_signal(this->state_mutex_);
 			} else {
 				// E-stop state can be modified only from internal commands but enable/disable commands should pass
 				if (req.command.state[i] == STATE_CMD_ENABLE ||

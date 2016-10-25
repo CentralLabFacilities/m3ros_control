@@ -410,8 +410,8 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr,
 	obase_shm_shr_ptr_ = obase_shm_shr_ptr;
 	obase_ja_shr_ptr_ = obase_ja_shr_ptr;
 
-    m3rt::M3_INFO("%s: Initializing dispatch thread..\n", name.c_str());
-    switch (ctrl_mode) {
+        m3rt::M3_INFO("%s: Initializing dispatch thread..\n", name.c_str());
+        switch (ctrl_mode) {
 		case (SDS):
 			detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 			break;
