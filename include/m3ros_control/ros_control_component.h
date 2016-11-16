@@ -105,8 +105,8 @@ protected:
     void RosShutdown();
 
 private:
-    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, hw_interface_mode_;
-    bool ctrl_obase_;
+    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
+    bool sds_ctrl_obase_;
     
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
@@ -124,6 +124,7 @@ private:
     m3::M3Omnibase* obase_shr_ptr_;
     m3::M3OmnibaseShm* obase_shm_shr_ptr_;
     m3::M3JointArray* obase_ja_shr_ptr_;
+    m3::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
 
     long rc,mrc;
     ros::Duration period_;
