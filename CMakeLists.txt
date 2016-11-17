@@ -82,7 +82,6 @@ find_package(M3rt REQUIRED)
 set(LIBRARIES ${LIBRARIES} ${M3RT_LIBRARIES})
 set(INCLUDE_DIRS ${INCLUDE_DIRS} ${M3RT_INCLUDE_DIR})
 
-
 ###############################################################################
 # Find google protobuff
 find_package(Protobuf REQUIRED)
