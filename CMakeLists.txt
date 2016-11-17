@@ -101,7 +101,6 @@ find_package(Boost 1.34 COMPONENTS filesystem system serialization REQUIRED)
 set(LIBRARIES ${LIBRARIES} ${Boost_LIBRARIES})
 set(INCLUDE_DIRS ${INCLUDE_DIRS} ${Boost_INCLUDE_DIR} ${PROJECT_INCLUDE_DIR})
 
-
 ###############################################################################
 # Find Yamlcpp
 find_package(PkgConfig REQUIRED)

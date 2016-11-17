@@ -409,7 +409,7 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* oba
     detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 }
 
-OmnibaseCtrl::OmnibaseCtrl(m3::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode) :
+OmnibaseCtrl::OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode) :
         obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(
         NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_DISABLE), enabled(false), hst(-1), ctrl_mode(
                 mode), max_lin(0.3), max_ang(1.0), diag_i(0) {
