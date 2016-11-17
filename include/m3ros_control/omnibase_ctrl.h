@@ -11,7 +11,7 @@
 #include <m3/vehicles/omnibase_shm_sds.h>
 
 #include <m3meka_msgs/M3ControlStates.h>
-#include <meka_omnibase_control/meka_omnibase_control.hpp>
+#include <m3/meka_omnibase_control/meka_omnibase_control.hpp>
 
 #include <thread>
 #include <ros/ros.h>

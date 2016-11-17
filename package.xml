@@ -43,6 +43,7 @@
   <build_depend>m3core</build_depend>
   <build_depend>m3meka</build_depend>
   <build_depend>m3meka_msgs</build_depend>
+  <build_depend>meka_omnibase_control</build_depend>
   <build_depend>control_toolbox</build_depend>
   <build_depend>tf</build_depend>
   <build_depend>nav_msgs</build_depend>
@@ -58,6 +59,7 @@
   <run_depend>m3core</run_depend>
   <run_depend>m3meka</run_depend>
   <run_depend>m3meka_msgs</run_depend>
+  <run_depend>meka_omnibase_control</run_depend>
   <run_depend>control_toolbox</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>controller_manager</run_depend>
