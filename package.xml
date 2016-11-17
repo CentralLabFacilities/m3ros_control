@@ -71,7 +71,6 @@
   <run_depend>actionlib_msgs</run_depend>
   <run_depend>realtime_tools</run_depend>
   <run_depend>nav_msgs</run_depend>
-  
   <run_depend>message_runtime</run_depend>
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -124,7 +124,7 @@ private:
     m3::M3Omnibase* obase_shr_ptr_;
     m3::M3OmnibaseShm* obase_shm_shr_ptr_;
     m3::M3JointArray* obase_ja_shr_ptr_;
-    m3::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
+    m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
 
     long rc,mrc;
     ros::Duration period_;

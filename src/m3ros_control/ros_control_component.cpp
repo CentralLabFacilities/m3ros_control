@@ -173,7 +173,7 @@ bool RosControlComponent::LinkDependentComponents() {
             return false;
         }
     } else {
-        obase_vctrl_shr_ptr_ = (m3::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
+        obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
         if (obase_vctrl_shr_ptr_ == NULL) {
             m3rt::M3_INFO("%s not found for component %s\n", obase_vctrl_name_.c_str(), GetName().c_str());
             return false;

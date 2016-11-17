@@ -30,7 +30,7 @@ public:
 	};
 
 	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = STD);
-	OmnibaseCtrl(m3::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = VCTRL);
+	OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = VCTRL);
 
 	~OmnibaseCtrl();
 
@@ -55,7 +55,7 @@ private:
 	m3::M3Omnibase* obase_shr_ptr_;
 	m3::M3OmnibaseShm* obase_shm_shr_ptr_;
 	m3::M3JointArray* obase_ja_shr_ptr_;
-    m3::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
+	m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
     M3Sds* sys; //not in m3 namespace
 
     ros::NodeHandle* ros_nh_ptr_;
