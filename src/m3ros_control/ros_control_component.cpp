@@ -93,7 +93,7 @@ void *rosmain_async_spinner(void * arg) {
 
 RosControlComponent::RosControlComponent() :
         m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), cb_queue_ptr(NULL), was_estop_(true), spinner_running_(
-                false), sds_ctrl_obase_(false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
+                false), obase_ctrl(false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
         NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
                 NULL), obase_vctrl_shr_ptr_(NULL), rc(0), mrc(0), ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(
@@ -156,30 +156,28 @@ bool RosControlComponent::LinkDependentComponents() {
         m3rt::M3_INFO("%s not found for component %s\n", pwr_name_.c_str(), GetName().c_str());
         return false;
     }
-    if (sds_ctrl_obase_) {
-        obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
-        if (obase_shr_ptr_ == NULL) {
-            m3rt::M3_INFO("%s not found for component %s\n", obase_name_.c_str(), GetName().c_str());
-            return false;
-        }
-        obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(obase_shm_name_);
-        if (obase_shm_shr_ptr_ == NULL) {
-            m3rt::M3_INFO("%s not found for component %s\n", obase_shm_name_.c_str(), GetName().c_str());
-            return false;
-        }
-        obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(obase_jointarray_name_);
-        if (obase_ja_shr_ptr_ == NULL) {
-            m3rt::M3_INFO("%s not found for component %s\n", obase_jointarray_name_.c_str(), GetName().c_str());
-            return false;
-        }
-    } else {
-        obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
-        if (obase_vctrl_shr_ptr_ == NULL) {
-            m3rt::M3_INFO("%s not found for component %s\n", obase_vctrl_name_.c_str(), GetName().c_str());
-            return false;
-        }
-    }
-    m3rt::M3_INFO("LinkDependentComponents success!");
+    obase_ctrl = true;
+    obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
+	if (obase_vctrl_shr_ptr_ == NULL) {
+		m3rt::M3_INFO("%s not found for component %s, probing other omnibase components...\n", obase_vctrl_name_.c_str(), GetName().c_str());
+		obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
+		if (obase_shr_ptr_ == NULL) {
+			m3rt::M3_INFO("%s not found for component %s\n", obase_name_.c_str(), GetName().c_str());
+			obase_ctrl = false;
+		}
+		obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(obase_shm_name_);
+		if (obase_shm_shr_ptr_ == NULL) {
+			m3rt::M3_INFO("%s not found for component %s\n", obase_shm_name_.c_str(), GetName().c_str());
+			obase_ctrl = false;
+		}
+		obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(obase_jointarray_name_);
+		if (obase_ja_shr_ptr_ == NULL) {
+			m3rt::M3_INFO("%s not found for component %s\n", obase_jointarray_name_.c_str(), GetName().c_str());
+			obase_ctrl = false;
+		}
+	}
+	
+    m3rt::M3_INFO("LinkDependentComponents success!\n");
     return true;
 }
 
@@ -205,7 +203,6 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename) {
     doc["humanoid"] >> bot_name_;
     doc["zlift"] >> zlift_name_;
     doc["pwr_component"] >> pwr_name_;
-    doc["m3ros_obase_ctrl"] >> sds_ctrl_obase_;
     doc["omnibase"] >> obase_name_;
     doc["omnibase_shm"] >> obase_shm_name_;
     doc["omnibase_jointarray"] >> obase_jointarray_name_;
@@ -284,9 +281,7 @@ void RosControlComponent::StepStatus() {
         if (!pwr_shr_ptr_->IsMotorPowerOn()) {
             rt_sem_wait(state_mutex_);
             hw_ptr_->changeStateAll(STATE_CMD_ESTOP);
-            if (obase_ptr_->is_running()) {
-                obase_ptr_->changeState(STATE_CMD_ESTOP);
-            }
+            obase_ptr_->changeState(STATE_CMD_ESTOP);
             rt_sem_signal(state_mutex_);
             was_estop_ = true;
         } else {        //automatic recover to stop after estop
@@ -294,9 +289,7 @@ void RosControlComponent::StepStatus() {
                 was_estop_ = false;
                 rt_sem_wait(state_mutex_);
                 hw_ptr_->changeStateAll(STATE_CMD_STOP);
-                if (obase_ptr_ != NULL && obase_ptr_->is_running()) {
-                    obase_ptr_->changeState(STATE_CMD_STOP);
-                }
+				obase_ptr_->changeState(STATE_CMD_STOP);
                 rt_sem_signal(state_mutex_);
             }
         }
@@ -397,11 +390,11 @@ bool RosControlComponent::RosInit() {
 
         // Create the Omnibase control interface
         if (obase_shr_ptr_ && obase_shm_shr_ptr_ && obase_ja_shr_ptr_) {
-            m3rt::M3_INFO("shared pointers set, starting sds omnibase control...\n");
+            m3rt::M3_INFO("starting sds omnibase control...\n");
             obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_, obase_ja_shr_ptr_, ros_node_name);
         } else {
             if (obase_vctrl_shr_ptr_) {
-                m3rt::M3_INFO("shared pointers set, starting velocity omnibase control...\n");
+                m3rt::M3_INFO("starting velocity omnibase control...\n");
                 obase_ptr_ = new OmnibaseCtrl(obase_vctrl_shr_ptr_, ros_node_name);
             }
         }
@@ -436,10 +429,8 @@ void RosControlComponent::RosShutdown() {
     //if (spinner_ptr_ != NULL)
     //    spinner_ptr_->stop();
 
-    if (obase_ptr_->is_running()) {
-        m3rt::M3_INFO("Shutting down omnibase control...\n");
-        obase_ptr_->shutdown();
-    }
+	m3rt::M3_INFO("Shutting down omnibase control...\n");
+	obase_ptr_->shutdown();
 
     spinner_running_ = false;
     if (rc) {
@@ -480,29 +471,20 @@ bool RosControlComponent::changeStateCallback(m3meka_msgs::M3ControlStateChange:
     if (req.command.state.size() > 0 && req.command.state.size() == req.command.group_name.size()) {
         for (size_t i = 0; i < req.command.group_name.size(); i++) {
             int ret_tmp = 0;
-            //special handling of base for now...
-            if (req.command.group_name[i] == "base") {
-                rt_sem_wait(this->state_mutex_);
-                if (sds_ctrl_obase_)
-                    ret_tmp = obase_ptr_->changeState(req.command.state[i]);
-                else
-                    ret_tmp = STATE_CMD_DISABLE;
-                rt_sem_signal(this->state_mutex_);
-            } else {
-                // E-stop state can be modified only from internal commands but enable/disable commands should pass
-                if (req.command.state[i] == STATE_CMD_ENABLE || req.command.state[i] == STATE_CMD_DISABLE
-                        || !was_estop_) {
-                    // during change, no other function must use the ctrl_state.
-                    rt_sem_wait(this->state_mutex_);
-                    ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
-                    rt_sem_signal(this->state_mutex_);
+			// E-stop state can be modified only from internal commands but enable/disable commands should pass
+			if (req.command.state[i] == STATE_CMD_ENABLE || req.command.state[i] == STATE_CMD_DISABLE
+					|| !was_estop_) {
+				// during change, no other function must use the ctrl_state.
+				rt_sem_wait(this->state_mutex_);
+				ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
+				ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+				rt_sem_signal(this->state_mutex_);
 
-                    res.result.group_name.push_back(req.command.group_name[i]);
-                    res.result.state.push_back(hw_ptr_->getCtrlState(req.command.group_name[i]));
-                } else {
-                    ret = -3;
-                }
-            }
+				res.result.group_name.push_back(req.command.group_name[i]);
+				res.result.state.push_back(hw_ptr_->getCtrlState(req.command.group_name[i]));
+			} else {
+				ret = -3;
+			} 
             // only consider the worst error
             if (ret_tmp != 0 && ret_tmp < ret) {
                 ret = ret_tmp;

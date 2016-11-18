@@ -15,11 +15,12 @@
 #include <rtai_shm.h>
 
 #include <nav_msgs/Odometry.h>
-#include <tf/transform_broadcaster.h>
 #include <realtime_tools/realtime_publisher.h>
+#include <tf/transform_broadcaster.h>
 
 #include <m3/toolbox/toolbox.h>
 #include "m3/vehicles/omnibase.pb.h"
+#include "m3/meka_omnibase_control/meka_omnibase_control.pb.h"
 
 #define RT_TASK_FREQUENCY_MEKA_OMNI_SHM 100
 #define RT_TIMER_TICKS_NS_MEKA_OMNI_SHM (1000000000 / RT_TASK_FREQUENCY_MEKA_OMNI_SHM)      //Period of rt-timer
@@ -390,35 +391,42 @@ void* rt_system_thread(void * arg) {
 
 /////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
 
+OmnibaseCtrl::OmnibaseCtrl() : obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), 
+		obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(NULL), 
+		running(false), name("base"), node_name("undefined"), ctrl_state(STATE_DISABLE), 
+		enabled(false), hst(-1), ctrl_mode(DISABLED), max_lin(0.3), max_ang(1.0), diag_i(0) {
+
+}
+
 OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr,
-        m3::M3JointArray* obase_ja_shr_ptr, std::string nodename, BASE_CTRL_MODE mode) :
-        obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(
-        NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_DISABLE), enabled(false), hst(-1), ctrl_mode(
-                mode), max_lin(0.3), max_ang(1.0), diag_i(0) {
+        m3::M3JointArray* obase_ja_shr_ptr, std::string nodename) : OmnibaseCtrl(){
 
     assert(obase_shr_ptr != NULL);
     assert(obase_shm_shr_ptr != NULL);
     assert(obase_ja_shr_ptr != NULL);
 
+	node_name = nodename;
+	ctrl_mode = STD;
+	
     obase_shr_ptr_ = obase_shr_ptr;
     obase_shm_shr_ptr_ = obase_shm_shr_ptr;
     obase_ja_shr_ptr_ = obase_ja_shr_ptr;
 
-    m3rt::M3_INFO("%s: Initializing dispatch thread..\n", name.c_str());
+    m3rt::M3_INFO("%s: Initializing dispatch thread for standard control.\n", name.c_str());
 
     detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 }
 
-OmnibaseCtrl::OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode) :
-        obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(
-        NULL), running(false), name("base"), node_name(nodename), ctrl_state(STATE_DISABLE), enabled(false), hst(-1), ctrl_mode(
-                mode), max_lin(0.3), max_ang(1.0), diag_i(0) {
+OmnibaseCtrl::OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename) : OmnibaseCtrl() {
 
     assert(obase_vctrl_shr_ptr != NULL);
+    
+    node_name = nodename;
+	ctrl_mode = VCTRL;
 
     obase_vctrl_shr_ptr_ = obase_vctrl_shr_ptr;
 
-    m3rt::M3_INFO("%s: Initializing bridge to omnibase velocity controller..\n", name.c_str());
+    m3rt::M3_INFO("%s: Initializing bridge to omnibase velocity-based controller.\n", name.c_str());
 
     bridge_th_ = std::thread(&OmnibaseCtrl::init_vctrl_bridge, this);
 }
@@ -470,18 +478,26 @@ void OmnibaseCtrl::shutdown() {
     switch (ctrl_mode) {
     case (STD):
         if (hst) {
+			m3rt::M3_INFO("rt thread found, exiting..\n");
             sys_thread_end = true;
             rt_thread_join(hst);
-            rt_shm_free(nam2num(MEKA_ODOM_SHM));
             hst = -1;
         }
+        if (sys) {
+			m3rt::M3_INFO("sys shm lock found, exiting..\n");
+		    rt_shm_free(nam2num(MEKA_ODOM_SHM));
+		}
         detach_sds_th_.join(); //should already be ended. anyways...
-        m3rt::M3_INFO("SDS thread ended.\n");
+        m3rt::M3_INFO("shared data services thread ended.\n");
         break;
     case (VCTRL):
+		sys_thread_end = true; //TODO: renaming
         bridge_th_.join();
-        m3rt::M3_INFO("VCTRL thread ended.\n");
+        m3rt::M3_INFO("bridge to velocity based omnibase control thread ended.\n");
         break;
+    case (DISABLED):
+		m3rt::M3_INFO("no omnibase control active, exiting anyway..\n");
+		break;
     }
     running = false;
 }
@@ -526,12 +542,13 @@ void OmnibaseCtrl::init_sds() {
 void OmnibaseCtrl::init_vctrl_bridge() {
     // ROS stuff
     ros_nh_ptr_ = new ros::NodeHandle(node_name + "_base_controller");
-
-    cmdvel_sub = ros_nh_ptr_->subscribe("smooth_cmd_vel", 1, boost::bind(&OmnibaseCtrl::cmd_vel_cb, this, _1));
+	odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
+		
+    cmdvel_sub = ros_nh_ptr_->subscribe("smooth_cmd_vel", 1, &OmnibaseCtrl::cmd_vel_cb, this);
     odom_pub = ros_nh_ptr_->advertise<nav_msgs::Odometry>("odom", 1);
 
-    ros::param<double>("~max_lin_vel", max_lin, 0.30);
-    ros::param<double>("~max_ang_vel", max_ang, 1.00);
+    ros::param::param<double>("~max_lin_vel", max_lin, 0.30);
+    ros::param::param<double>("~max_ang_vel", max_ang, 1.00);
     last_cmd = ros::Time(0);
     timeout = ros::Duration(0.25);
 
@@ -539,7 +556,7 @@ void OmnibaseCtrl::init_vctrl_bridge() {
 
     running = true;
 
-    while (true) {
+    while (!sys_thread_end.load()) {
         if (ros_to_sds_.load()) { //TODO: renaming..
             vctrl_step();
         }
@@ -552,14 +569,14 @@ void OmnibaseCtrl::init_vctrl_bridge() {
 void OmnibaseCtrl::vctrl_step() {
 
     ros::Time now = ros::Time::now();
-    ros::Time elapsed = now - last_cmd;
+    ros::Duration elapsed = now - last_cmd;
 
     // Make the transform available in the 'future' to avoid extrapolation errors
     // Same thing AMCL and robot_state_publisher for static transform do.
     ros::Time odom_time = now;
 
     //rospy.logdebug("Time elapsed since last command: " + str(elapsed.to_sec()))
-    if (elapsed > timeout) {
+    if (elapsed.toSec() > timeout.toSec()) {
         // Too much time passed since last command, zero it.
         last_cmd_vel = geometry_msgs::Twist();
     }
@@ -587,35 +604,38 @@ void OmnibaseCtrl::vctrl_step() {
     }
 
     obase_vctrl_shr_ptr_->SetStateOp();
-    obase_vctrl_shr_ptr_->GetCommand()->set_xd_des(0,xd);
-    obase_vctrl_shr_ptr_->GetCommand()->set_xd_des(1,yd);
-    obase_vctrl_shr_ptr_->GetCommand()->set_xd_des(2,td);
 
-    for(uint i=0; obase_vctrl_shr_ptr_->GetCommand()->tqr_size(); i++) {
-        obase_vctrl_shr_ptr_->GetCommand()->set_tqr(i, 1.0);
+    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(0,xd);
+    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(1,yd);
+    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(2,td);
+    
+    for(int i=0; i < ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->tqr_size(); i++) {
+        ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_tqr(i, 1.0);
     }
-
+    
+    MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
+    
     // Odometry
-    double x = obase_vctrl_shr_ptr_->GetStatus()->g_pos(0);
-    double y = obase_vctrl_shr_ptr_->GetStatus()->g_pos(1);
-    double t = obase_vctrl_shr_ptr_->GetStatus()->g_pos(2);
+    double x = obase_vctrl_status->g_pos(0);
+    double y = obase_vctrl_status->g_pos(1);
+    double t = obase_vctrl_status->g_pos(2);
 
-    double oxd = obase_vctrl_shr_ptr_->GetStatus()->l_vel(0);
-    double oyd = obase_vctrl_shr_ptr_->GetStatus()->l_vel(1);
-    double otd = obase_vctrl_shr_ptr_->GetStatus()->l_vel(2);
-
-    tf::Quaternion q = tf::createQuaternionFromRPY(0,0,t);
-
+    double oxd = obase_vctrl_status->l_vel(0);
+    double oyd = obase_vctrl_status->l_vel(1);
+    double otd = obase_vctrl_status->l_vel(2);
+    
     tf::Transform transform;
     transform.setOrigin( tf::Vector3(x, y, 0.0) );
-    transform.setRotation(q);
+    transform.setRotation(tf::createQuaternionFromRPY(0,0,t));
 
-    tf_bc.sendTransform(tf::StampedTransform(transform, odom_time, "base_link", "odom"));
+    odom_broadcaster_ptr->sendTransform(tf::StampedTransform(transform, odom_time, "base_link", "odom"));
 
     nav_msgs::Odometry odom;
     odom.header.frame_id = "odom";
     odom.header.stamp = odom_time;
     odom.child_frame_id = "base_link";
+
+	geometry_msgs::Quaternion q = tf::createQuaternionMsgFromYaw(t);
 
     odom.pose.pose.position.x = x;
     odom.pose.pose.position.y = y;
@@ -627,32 +647,21 @@ void OmnibaseCtrl::vctrl_step() {
     odom.twist.twist.angular.z = otd;
 
     odom_pub.publish(odom);
-
     diag_i++;
     if (diag_i >= 5) {
-        std::vector<double> alpha;
-        std::vector<double> beta;
-        std::vector<double> beta_d;
-        std::vector<double> phid;
-        std::copy(obase_vctrl_shr_ptr_->GetStatus()->alpha().begin(), obase_vctrl_shr_ptr_->GetStatus()->alpha().end(), std::front_inserter(alpha));
-        std::copy(obase_vctrl_shr_ptr_->GetStatus()->beta().begin(), obase_vctrl_shr_ptr_->GetStatus()->beta().end(), std::front_inserter(beta));
-        std::copy(obase_vctrl_shr_ptr_->GetStatus()->beta_d().begin(), obase_vctrl_shr_ptr_->GetStatus()->beta_d().end(), std::front_inserter(beta_d));
-        std::copy(obase_vctrl_shr_ptr_->GetStatus()->phid().begin(), obase_vctrl_shr_ptr_->GetStatus()->phid().end(), std::front_inserter(phid));
-        m3rt::M3_INFO("alpha: %d %d %d %d\n", alpha[0],alpha[1],alpha[2],alpha[3]);
-        m3rt::M3_INFO("beta: %d %d %d %d\n", beta[0],beta[1],beta[2],beta[3]);
-        m3rt::M3_INFO("beta_d: %d %d %d %d\n", beta_d[0],beta_d[1],beta_d[2],beta_d[3]);
-        m3rt::M3_INFO("phid: %d %d %d %d\n", phid[0],phid[1],phid[2],phid[3]);
+		
+        m3rt::M3_INFO("alpha: %d %d %d %d\n", obase_vctrl_status->alpha(0),obase_vctrl_status->alpha(1),obase_vctrl_status->alpha(2),obase_vctrl_status->alpha(3));
+        m3rt::M3_INFO("beta: %d %d %d %d\n", obase_vctrl_status->beta(0),obase_vctrl_status->beta(1),obase_vctrl_status->beta(2),obase_vctrl_status->beta(3));
+        m3rt::M3_INFO("beta_d: %d %d %d %d\n", obase_vctrl_status->beta_d(0),obase_vctrl_status->beta_d(1),obase_vctrl_status->beta_d(2),obase_vctrl_status->beta_d(3));
+        m3rt::M3_INFO("phid: %d %d %d %d\n", obase_vctrl_status->phi_d(0),obase_vctrl_status->phi_d(1),obase_vctrl_status->phi_d(2),obase_vctrl_status->phi_d(3));
 
         diag_i = 0;
 
-        std::vector<double> l;
-        std::copy(obase_vctrl_shr_ptr_->GetStatus()->l().begin(), obase_vctrl_shr_ptr_->GetStatus()->l().end(), std::front_inserter(l));
-
-        for(int i : l.size()) {
-            double alph = obase_vctrl_shr_ptr_->GetStatus()->alpha(i);
-            double bet = obase_vctrl_shr_ptr_->GetStatus()->beta(i);
-            double xx = l.at(i) * std::cos(alph);
-            double yy = l.at(i) * std::sin(alph);
+        for(int i = 0; i < obase_vctrl_status->l_size(); i++) {
+            double alph = obase_vctrl_status->alpha(i);
+            double bet = obase_vctrl_status->beta(i);
+            double xx = obase_vctrl_status->l(i) * std::cos(alph);
+            double yy = obase_vctrl_status->l(i) * std::sin(alph);
 
             tf::Quaternion qq = tf::createQuaternionFromRPY(0,0,alph + bet - M_PI/2.0);
 
@@ -660,7 +669,7 @@ void OmnibaseCtrl::vctrl_step() {
             transform.setOrigin( tf::Vector3(xx, yy, 0.0) );
             transform.setRotation(qq);
 
-            tf_bc.sendTransform(tf::StampedTransform(transform, odom_time, "caster_"+std::str(i), "odom"));
+            odom_broadcaster_ptr->sendTransform(tf::StampedTransform(transform, odom_time, "caster_"+to_string(i), "odom"));
 
             ros::Duration(0.01).sleep();
         }
@@ -685,8 +694,7 @@ void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
 
 int OmnibaseCtrl::changeState(const int state_cmd) {
     int ret = 0;
-    if (!is_sds_active()) { //base sds thread is not active anyways..
-        //m3rt::M3_INFO("%s: SDS is not active!\n", name.c_str());
+    if (!running || (ctrl_mode == STD && !is_sds_active())) {
         ret = -3;
     } else {
         switch (state_cmd) {

@@ -31,8 +31,8 @@ extern "C"
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/hardware_interface.h>
 
-#include "m3ros_control/meka_robot_hw.h"
-#include "m3ros_control/omnibase_ctrl.h"
+#include "meka_robot_hw.h"
+#include "omnibase_ctrl.h"
 
 ////////// Activate some timing infos
 //#define TIMING
@@ -106,7 +106,7 @@ protected:
 
 private:
     std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
-    bool sds_ctrl_obase_;
+    bool obase_ctrl;
     
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state

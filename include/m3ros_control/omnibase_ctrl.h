@@ -9,12 +9,13 @@
 #include <m3/vehicles/omnibase.h>
 #include <m3/vehicles/omnibase_shm.h>
 #include <m3/vehicles/omnibase_shm_sds.h>
+#include <m3/meka_omnibase_control/meka_omnibase_control.hpp>
 
 #include <m3meka_msgs/M3ControlStates.h>
-#include <m3/meka_omnibase_control/meka_omnibase_control.hpp>
 
 #include <thread>
 #include <ros/ros.h>
+#include <geometry_msgs/Twist.h>
 
 #ifndef M3ROS_CONTROL_OMNIBASE_CTRL_H_
 #define M3ROS_CONTROL_OMNIBASE_CTRL_H_
@@ -25,12 +26,14 @@ class OmnibaseCtrl {
 public:
 
 	enum BASE_CTRL_MODE {
+	    DISABLED,
 	    STD, // standard. omnibase control via shared data service
 		VCTRL // velocity controlled via meka omnibase control
 	};
-
-	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = STD);
-	OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename, BASE_CTRL_MODE mode = VCTRL);
+	
+	OmnibaseCtrl(); //default constructor	
+	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr, std::string nodename);
+	OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename);
 
 	~OmnibaseCtrl();
 
@@ -86,8 +89,6 @@ private:
 	geometry_msgs::Twist last_cmd_vel;
 	ros::Time last_cmd;
 	ros::Duration timeout;
-
-	static tf::TransformBroadcaster tf_bc;
 
 };
 
