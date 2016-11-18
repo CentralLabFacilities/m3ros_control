@@ -648,12 +648,12 @@ void OmnibaseCtrl::vctrl_step() {
 
     odom_pub.publish(odom);
     diag_i++;
-    if (diag_i >= 5) {
+    if (diag_i >= 10) {
 		
-        m3rt::M3_INFO("alpha: %d %d %d %d\n", obase_vctrl_status->alpha(0),obase_vctrl_status->alpha(1),obase_vctrl_status->alpha(2),obase_vctrl_status->alpha(3));
-        m3rt::M3_INFO("beta: %d %d %d %d\n", obase_vctrl_status->beta(0),obase_vctrl_status->beta(1),obase_vctrl_status->beta(2),obase_vctrl_status->beta(3));
-        m3rt::M3_INFO("beta_d: %d %d %d %d\n", obase_vctrl_status->beta_d(0),obase_vctrl_status->beta_d(1),obase_vctrl_status->beta_d(2),obase_vctrl_status->beta_d(3));
-        m3rt::M3_INFO("phid: %d %d %d %d\n", obase_vctrl_status->phi_d(0),obase_vctrl_status->phi_d(1),obase_vctrl_status->phi_d(2),obase_vctrl_status->phi_d(3));
+        m3rt::M3_INFO("alpha: %f %f %f %f\n", obase_vctrl_status->alpha(0),obase_vctrl_status->alpha(1),obase_vctrl_status->alpha(2),obase_vctrl_status->alpha(3));
+        m3rt::M3_INFO("beta: %f %f %f %f\n", obase_vctrl_status->beta(0),obase_vctrl_status->beta(1),obase_vctrl_status->beta(2),obase_vctrl_status->beta(3));
+        m3rt::M3_INFO("beta_d: %f %f %f %f\n", obase_vctrl_status->beta_d(0),obase_vctrl_status->beta_d(1),obase_vctrl_status->beta_d(2),obase_vctrl_status->beta_d(3));
+        m3rt::M3_INFO("phid: %f %f %f %f\n", obase_vctrl_status->phi_d(0),obase_vctrl_status->phi_d(1),obase_vctrl_status->phi_d(2),obase_vctrl_status->phi_d(3));
 
         diag_i = 0;
 

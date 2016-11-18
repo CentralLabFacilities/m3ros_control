@@ -476,8 +476,11 @@ bool RosControlComponent::changeStateCallback(m3meka_msgs::M3ControlStateChange:
 					|| !was_estop_) {
 				// during change, no other function must use the ctrl_state.
 				rt_sem_wait(this->state_mutex_);
-				ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
-				ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+				if (req.command.group_name[i] == "base") {
+					ret_tmp = obase_ptr_->changeState(req.command.state[i]);
+				} else {
+					ret_tmp = hw_ptr_->changeState(req.command.state[i], req.command.group_name[i]);
+				}
 				rt_sem_signal(this->state_mutex_);
 
 				res.result.group_name.push_back(req.command.group_name[i]);
