@@ -161,22 +161,12 @@ bool RosControlComponent::LinkDependentComponents() {
 	if (obase_vctrl_shr_ptr_ == NULL) {
 		m3rt::M3_INFO("%s not found for component %s, probing other omnibase components...\n", obase_vctrl_name_.c_str(), GetName().c_str());
 		obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
-		if (obase_shr_ptr_ == NULL) {
-			m3rt::M3_INFO("%s not found for component %s\n", obase_name_.c_str(), GetName().c_str());
+		if (obase_shr_ptr_ == NULL || obase_shm_shr_ptr_ == NULL || obase_ja_shr_ptr_ == NULL) 
 			obase_ctrl = false;
-		}
-		obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(obase_shm_name_);
-		if (obase_shm_shr_ptr_ == NULL) {
-			m3rt::M3_INFO("%s not found for component %s\n", obase_shm_name_.c_str(), GetName().c_str());
-			obase_ctrl = false;
-		}
-		obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(obase_jointarray_name_);
-		if (obase_ja_shr_ptr_ == NULL) {
-			m3rt::M3_INFO("%s not found for component %s\n", obase_jointarray_name_.c_str(), GetName().c_str());
-			obase_ctrl = false;
-		}
 	}
-	
+	if(!obase_ctrl) {
+		m3rt::M3_INFO("Starting %s without omnibase control capabilities...\n", GetName().c_str());
+	}
     m3rt::M3_INFO("LinkDependentComponents success!\n");
     return true;
 }
@@ -387,17 +377,19 @@ bool RosControlComponent::RosInit() {
         hw_ptr_ = new MekaRobotHW(bot_shr_ptr_, zlift_shr_ptr_, hw_interface_mode_);
         hw_ptr_->setCtrlAcceptableMirrorError(accept_ang_pos_, accept_ang_vel_, accept_torque_, accept_lin_pos_,
                 accept_lin_vel_, accept_force_);
-
+		
+		obase_ptr_ = new OmnibaseCtrl(ros_node_name);
         // Create the Omnibase control interface
         if (obase_shr_ptr_ && obase_shm_shr_ptr_ && obase_ja_shr_ptr_) {
             m3rt::M3_INFO("starting sds omnibase control...\n");
-            obase_ptr_ = new OmnibaseCtrl(obase_shr_ptr_, obase_shm_shr_ptr_, obase_ja_shr_ptr_, ros_node_name);
+            obase_ptr_->startup_sds_control(obase_shr_ptr_, obase_shm_shr_ptr_, obase_ja_shr_ptr_);
         } else {
             if (obase_vctrl_shr_ptr_) {
                 m3rt::M3_INFO("starting velocity omnibase control...\n");
-                obase_ptr_ = new OmnibaseCtrl(obase_vctrl_shr_ptr_, ros_node_name);
+                obase_ptr_->startup_vel_control(obase_vctrl_shr_ptr_);
             }
         }
+        
         // Create a realtime publisher for the state
         realtime_pub_ptr_ = new realtime_tools::RealtimePublisher<m3meka_msgs::M3ControlStates>(*ros_nh_ptr2_, "state",
                 4);

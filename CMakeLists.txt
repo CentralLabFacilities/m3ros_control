@@ -131,6 +131,7 @@ catkin_package(
   realtime_tools
   m3core
   m3meka
+  meka_omnibase_control
   m3meka_msgs
   nav_msgs
   actionlib
@@ -172,8 +173,11 @@ add_library(${PROJECT_NAME} src/m3ros_control/ros_control_component.cpp
                             )
 add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
 
+
+FIND_LIBRARY(MEKA_OBASE_CTRL_LIB meka_omnibase_control ${CATKIN_PACKAGE_LIB_DESTINATION})
+
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES} ${ProtoHeaders} )
+target_link_libraries(${PROJECT_NAME} ${LIBRARIES} ${ProtoHeaders} ${MEKA_OBASE_CTRL_LIB})
 
 install(TARGETS ${PROJECT_NAME} 
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

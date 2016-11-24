@@ -31,13 +31,13 @@ public:
 		VCTRL // velocity controlled via meka omnibase control
 	};
 	
-	OmnibaseCtrl(); //default constructor	
-	OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr, std::string nodename);
-	OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename);
-
+	OmnibaseCtrl(std::string nodename);	
 	~OmnibaseCtrl();
 
 	void shutdown();
+
+	bool startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr);
+	bool startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr);
 
 	// try change the state to requested state_cmd
     int changeState(const int state_cmd);
@@ -62,9 +62,6 @@ private:
     M3Sds* sys; //not in m3 namespace
 
     ros::NodeHandle* ros_nh_ptr_;
-
-    ros::Publisher odom_pub;
-    ros::Subscriber cmdvel_sub;
 
     bool running;
     std::string name, node_name;

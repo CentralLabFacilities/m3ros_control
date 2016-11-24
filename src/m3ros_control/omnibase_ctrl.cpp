@@ -42,7 +42,7 @@ static M3OmnibaseShmSdsCommand cmd;
 static M3OmnibaseShmSdsStatus status;
 static int64_t last_cmd_ts;
 
-nav_msgs::Odometry odom_g;
+nav_msgs::Odometry odom;
 realtime_tools::RealtimePublisher<nav_msgs::Odometry>* realtime_pub;
 ros::Subscriber cmd_sub_g;
 boost::shared_ptr<tf::TransformBroadcaster> odom_broadcaster_ptr;
@@ -135,21 +135,21 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
     odom_broadcaster_ptr->sendTransform(odom_trans);
 
     //then, publish the pose and twist (movement) to ros
-    odom_g.header.stamp = ros_now;
-    odom_g.header.frame_id = "odom";
+    odom.header.stamp = ros_now;
+    odom.header.frame_id = "odom";
     //set the position
-    odom_g.pose.pose.position.x = x;
-    odom_g.pose.pose.position.y = y;
-    odom_g.pose.pose.position.z = 0.0;
-    odom_g.pose.pose.orientation = odom_quat;
+    odom.pose.pose.position.x = x;
+    odom.pose.pose.position.y = y;
+    odom.pose.pose.position.z = 0.0;
+    odom.pose.pose.orientation = odom_quat;
     //set the velocity
-    odom_g.child_frame_id = "base_link";
-    odom_g.twist.twist.linear.x = vx;
-    odom_g.twist.twist.linear.y = vy;
-    odom_g.twist.twist.angular.z = vth;
+    odom.child_frame_id = "base_link";
+    odom.twist.twist.linear.x = vx;
+    odom.twist.twist.linear.y = vy;
+    odom.twist.twist.angular.z = vth;
 
     if (realtime_pub->trylock()) {
-        realtime_pub->msg_ = odom_g;
+        realtime_pub->msg_ = odom;
         realtime_pub->unlockAndPublish();
     }
 
@@ -168,12 +168,12 @@ void step_ros(int cntr, ros::Duration & rtai_to_ros_offset) {
      {
      //printf("JOINT %d\n", i);
      printf("------------------------------\n");
-     printf("X: %f\n", odom_g.pose.pose.position.x);
-     printf("Y: %f\n", odom_g.pose.pose.position.y);
+     printf("X: %f\n", odom.pose.pose.position.x);
+     printf("Y: %f\n", odom.pose.pose.position.y);
      printf("YAW: %f\n", th);
-     printf("Vx: %f\n", odom_g.twist.twist.linear.x);
-     printf("Vy: %f\n", odom_g.twist.twist.linear.y);
-     printf("Va: %f\n", odom_g.twist.twist.angular.z);
+     printf("Vx: %f\n", odom.twist.twist.linear.x);
+     printf("Vy: %f\n", odom.twist.twist.linear.y);
+     printf("Va: %f\n", odom.twist.twist.angular.z);
      printf("------------------------------\n");
      printf("\n");
      }
@@ -391,21 +391,18 @@ void* rt_system_thread(void * arg) {
 
 /////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
 
-OmnibaseCtrl::OmnibaseCtrl() : obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), 
+OmnibaseCtrl::OmnibaseCtrl(std::string nodename) : obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), 
 		obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(NULL), 
-		running(false), name("base"), node_name("undefined"), ctrl_state(STATE_DISABLE), 
+		running(false), name("base"), node_name(nodename), ctrl_state(STATE_DISABLE), 
 		enabled(false), hst(-1), ctrl_mode(DISABLED), max_lin(0.3), max_ang(1.0), diag_i(0) {
 
 }
 
-OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr,
-        m3::M3JointArray* obase_ja_shr_ptr, std::string nodename) : OmnibaseCtrl(){
-
-    assert(obase_shr_ptr != NULL);
+bool OmnibaseCtrl::startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr) {
+	assert(obase_shr_ptr != NULL);
     assert(obase_shm_shr_ptr != NULL);
     assert(obase_ja_shr_ptr != NULL);
-
-	node_name = nodename;
+    
 	ctrl_mode = STD;
 	
     obase_shr_ptr_ = obase_shr_ptr;
@@ -417,11 +414,9 @@ OmnibaseCtrl::OmnibaseCtrl(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* oba
     detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 }
 
-OmnibaseCtrl::OmnibaseCtrl(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, std::string nodename) : OmnibaseCtrl() {
-
+bool OmnibaseCtrl::startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr) {
     assert(obase_vctrl_shr_ptr != NULL);
     
-    node_name = nodename;
 	ctrl_mode = VCTRL;
 
     obase_vctrl_shr_ptr_ = obase_vctrl_shr_ptr;
@@ -472,6 +467,9 @@ void OmnibaseCtrl::disable_ros2sds() {
         m3rt::M3_INFO("%s: Disabling ROS2SDS!\n", name.c_str());
         ros_to_sds_ = false;
     }
+    if(ctrl_mode == VCTRL) {
+		((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_ctrl_mode(MEKA_OMNIBASE_CONTROL_OFF); //OFF
+	}
 }
 
 void OmnibaseCtrl::shutdown() {
@@ -544,8 +542,8 @@ void OmnibaseCtrl::init_vctrl_bridge() {
     ros_nh_ptr_ = new ros::NodeHandle(node_name + "_base_controller");
 	odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
 		
-    cmdvel_sub = ros_nh_ptr_->subscribe("smooth_cmd_vel", 1, &OmnibaseCtrl::cmd_vel_cb, this);
-    odom_pub = ros_nh_ptr_->advertise<nav_msgs::Odometry>("odom", 1);
+    cmd_sub_g = ros_nh_ptr_->subscribe("smooth_cmd_vel", 1, &OmnibaseCtrl::cmd_vel_cb, this);
+    realtime_pub = new realtime_tools::RealtimePublisher<nav_msgs::Odometry>(*ros_nh_ptr_, "odom", 1);
 
     ros::param::param<double>("~max_lin_vel", max_lin, 0.30);
     ros::param::param<double>("~max_ang_vel", max_ang, 1.00);
@@ -570,90 +568,100 @@ void OmnibaseCtrl::vctrl_step() {
 
     ros::Time now = ros::Time::now();
     ros::Duration elapsed = now - last_cmd;
+    
+    if (ros_to_sds_.load()) { // If enabled, send control commands. otherwise just publish odometry.
+		//rospy.logdebug("Time elapsed since last command: " + str(elapsed.to_sec()))
+		if (elapsed.toSec() > timeout.toSec()) {
+			// Too much time passed since last command, zero it.
+			last_cmd_vel = geometry_msgs::Twist();
+		}
+		
+		double xd = last_cmd_vel.linear.x;
+		double yd = last_cmd_vel.linear.y;
+		double td = last_cmd_vel.angular.z;
 
+		double xda = fabs(last_cmd_vel.linear.x);
+		double yda = fabs(last_cmd_vel.linear.y);
+		double tda = fabs(last_cmd_vel.angular.z);
+
+		// Saturate according to velocity limits:
+		if (xda >= max_lin) {
+			double xds = last_cmd_vel.linear.x / xda;
+			xd = xds * max_lin;
+		}
+		if (yda > max_lin) {
+			double yds = last_cmd_vel.linear.y / yda;
+			yd = yds * max_lin;
+		}
+		if (tda > max_ang) {
+			double tds = last_cmd_vel.angular.z / tda;
+			td = tds * max_ang;
+		}
+
+		MekaOmnibaseControlCommand* obase_vctrl_command = (MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand();
+		MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
+	 		
+		obase_vctrl_command->set_ctrl_mode(MEKA_OMNIBASE_CONTROL_ON); //ON
+		obase_vctrl_command->set_xd_des(0,xd);
+		obase_vctrl_command->set_xd_des(1,yd);
+		obase_vctrl_command->set_xd_des(2,td);
+    
+		for(int i=0; i < obase_vctrl_command->tqr_size(); i++) {
+			obase_vctrl_command->set_tqr(i, 1.0);
+		}
+	}
+    
     // Make the transform available in the 'future' to avoid extrapolation errors
     // Same thing AMCL and robot_state_publisher for static transform do.
     ros::Time odom_time = now;
-
-    //rospy.logdebug("Time elapsed since last command: " + str(elapsed.to_sec()))
-    if (elapsed.toSec() > timeout.toSec()) {
-        // Too much time passed since last command, zero it.
-        last_cmd_vel = geometry_msgs::Twist();
-    }
-
-    double xd = last_cmd_vel.linear.x;
-    double yd = last_cmd_vel.linear.y;
-    double td = last_cmd_vel.angular.z;
-
-    double xda = fabs(last_cmd_vel.linear.x);
-    double yda = fabs(last_cmd_vel.linear.y);
-    double tda = fabs(last_cmd_vel.angular.z);
-
-    // Saturate according to velocity limits:
-    if (xda >= max_lin) {
-        double xds = last_cmd_vel.linear.x / xda;
-        xd = xds * max_lin;
-    }
-    if (yda > max_lin) {
-        double yds = last_cmd_vel.linear.y / yda;
-        yd = yds * max_lin;
-    }
-    if (tda > max_ang) {
-        double tds = last_cmd_vel.angular.z / tda;
-        td = tds * max_ang;
-    }
-
-    obase_vctrl_shr_ptr_->SetStateOp();
-
-    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(0,xd);
-    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(1,yd);
-    ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_xd_des(2,td);
-    
-    for(int i=0; i < ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->tqr_size(); i++) {
-        ((MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand())->set_tqr(i, 1.0);
-    }
-    
-    MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
-    
+       
     // Odometry
     double x = obase_vctrl_status->g_pos(0);
     double y = obase_vctrl_status->g_pos(1);
     double t = obase_vctrl_status->g_pos(2);
-
     double oxd = obase_vctrl_status->l_vel(0);
     double oyd = obase_vctrl_status->l_vel(1);
-    double otd = obase_vctrl_status->l_vel(2);
+    double otd = obase_vctrl_status->l_vel(2); 
+        
+    //first, we'll publish the transform over tf
+    geometry_msgs::TransformStamped odom_trans;
     
-    tf::Transform transform;
-    transform.setOrigin( tf::Vector3(x, y, 0.0) );
-    transform.setRotation(tf::createQuaternionFromRPY(0,0,t));
+    //since all odometry is 6DOF we'll need a quaternion created from yaw
+    geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(t);
 
-    odom_broadcaster_ptr->sendTransform(tf::StampedTransform(transform, odom_time, "base_link", "odom"));
+    odom_trans.header.stamp = odom_time;
+    odom_trans.header.frame_id = "odom";
+    odom_trans.child_frame_id = "base_link";
+    odom_trans.transform.translation.x = x;
+    odom_trans.transform.translation.y = y;
+    odom_trans.transform.translation.z = 0.0;
+    odom_trans.transform.rotation = odom_quat;
+    odom_broadcaster_ptr->sendTransform(odom_trans);
 
-    nav_msgs::Odometry odom;
+	//then, publish the pose and twist (movement) to ros
     odom.header.frame_id = "odom";
     odom.header.stamp = odom_time;
     odom.child_frame_id = "base_link";
-
-	geometry_msgs::Quaternion q = tf::createQuaternionMsgFromYaw(t);
-
     odom.pose.pose.position.x = x;
     odom.pose.pose.position.y = y;
-    odom.pose.pose.position.z = 0;
-    odom.pose.pose.orientation = q;
-
+    odom.pose.pose.position.z = 0.0;
+    odom.pose.pose.orientation = odom_quat;
     odom.twist.twist.linear.x = oxd;
     odom.twist.twist.linear.y = oyd;
     odom.twist.twist.angular.z = otd;
 
-    odom_pub.publish(odom);
+    if (realtime_pub->trylock()) {
+        realtime_pub->msg_ = odom;
+        realtime_pub->unlockAndPublish();
+    }
+    
     diag_i++;
-    if (diag_i >= 10) {
+    if (diag_i >= 5) {
 		
-        m3rt::M3_INFO("alpha: %f %f %f %f\n", obase_vctrl_status->alpha(0),obase_vctrl_status->alpha(1),obase_vctrl_status->alpha(2),obase_vctrl_status->alpha(3));
-        m3rt::M3_INFO("beta: %f %f %f %f\n", obase_vctrl_status->beta(0),obase_vctrl_status->beta(1),obase_vctrl_status->beta(2),obase_vctrl_status->beta(3));
-        m3rt::M3_INFO("beta_d: %f %f %f %f\n", obase_vctrl_status->beta_d(0),obase_vctrl_status->beta_d(1),obase_vctrl_status->beta_d(2),obase_vctrl_status->beta_d(3));
-        m3rt::M3_INFO("phid: %f %f %f %f\n", obase_vctrl_status->phi_d(0),obase_vctrl_status->phi_d(1),obase_vctrl_status->phi_d(2),obase_vctrl_status->phi_d(3));
+        //m3rt::M3_INFO("alpha: %f %f %f %f\n", obase_vctrl_status->alpha(0),obase_vctrl_status->alpha(1),obase_vctrl_status->alpha(2),obase_vctrl_status->alpha(3));
+        //m3rt::M3_INFO("beta: %f %f %f %f\n", obase_vctrl_status->beta(0),obase_vctrl_status->beta(1),obase_vctrl_status->beta(2),obase_vctrl_status->beta(3));
+        //m3rt::M3_INFO("beta_d: %f %f %f %f\n", obase_vctrl_status->beta_d(0),obase_vctrl_status->beta_d(1),obase_vctrl_status->beta_d(2),obase_vctrl_status->beta_d(3));
+        //m3rt::M3_INFO("phid: %f %f %f %f\n", obase_vctrl_status->phi_d(0),obase_vctrl_status->phi_d(1),obase_vctrl_status->phi_d(2),obase_vctrl_status->phi_d(3));
 
         diag_i = 0;
 
@@ -669,9 +677,9 @@ void OmnibaseCtrl::vctrl_step() {
             transform.setOrigin( tf::Vector3(xx, yy, 0.0) );
             transform.setRotation(qq);
 
-            odom_broadcaster_ptr->sendTransform(tf::StampedTransform(transform, odom_time, "caster_"+to_string(i), "odom"));
+            odom_broadcaster_ptr->sendTransform(tf::StampedTransform(transform, odom_time, "base_link", "caster_"+to_string(i)));
 
-            ros::Duration(0.01).sleep();
+            //ros::Duration(0.01).sleep();
         }
     }
 
