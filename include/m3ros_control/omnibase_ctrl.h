@@ -36,8 +36,8 @@ public:
 
 	void shutdown();
 
-	bool startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr);
-	bool startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr);
+	void startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr);
+	void startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr);
 
 	// try change the state to requested state_cmd
     int changeState(const int state_cmd);
@@ -59,6 +59,7 @@ private:
 	m3::M3OmnibaseShm* obase_shm_shr_ptr_;
 	m3::M3JointArray* obase_ja_shr_ptr_;
 	m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr_;
+	m3::M3Pwr* obase_pwr_shr_ptr_;
     M3Sds* sys; //not in m3 namespace
 
     ros::NodeHandle* ros_nh_ptr_;
@@ -76,7 +77,7 @@ private:
 
 	void init_sds();
 	void init_vctrl_bridge();
-	void cmd_vel_cb(geometry_msgs::Twist cmd_vel);
+	void cmd_vel_cb(const geometry_msgs::TwistConstPtr& msg);
 	void vctrl_step();
 
 	double max_lin;

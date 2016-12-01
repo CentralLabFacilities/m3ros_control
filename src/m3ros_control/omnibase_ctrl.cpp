@@ -398,7 +398,7 @@ OmnibaseCtrl::OmnibaseCtrl(std::string nodename) : obase_shr_ptr_(NULL), obase_s
 
 }
 
-bool OmnibaseCtrl::startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr) {
+void OmnibaseCtrl::startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr) {
 	assert(obase_shr_ptr != NULL);
     assert(obase_shm_shr_ptr != NULL);
     assert(obase_ja_shr_ptr != NULL);
@@ -414,13 +414,15 @@ bool OmnibaseCtrl::startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3Omni
     detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 }
 
-bool OmnibaseCtrl::startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr) {
+void OmnibaseCtrl::startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr) {
     assert(obase_vctrl_shr_ptr != NULL);
+    assert(obase_pwr_shr_ptr != NULL);
     
 	ctrl_mode = VCTRL;
 
     obase_vctrl_shr_ptr_ = obase_vctrl_shr_ptr;
-
+	obase_pwr_shr_ptr_ = obase_pwr_shr_ptr;
+	
     m3rt::M3_INFO("%s: Initializing bridge to omnibase velocity-based controller.\n", name.c_str());
 
     bridge_th_ = std::thread(&OmnibaseCtrl::init_vctrl_bridge, this);
@@ -538,11 +540,25 @@ void OmnibaseCtrl::init_sds() {
 }
 
 void OmnibaseCtrl::init_vctrl_bridge() {
+    while (1) {
+        MekaOmnibaseControlStatus *status = (MekaOmnibaseControlStatus*) obase_vctrl_shr_ptr_->GetStatus();
+        int64_t timestamp = (status->mutable_base())->timestamp();
+        if (timestamp) {
+            m3rt::M3_INFO("Timestamp found, initializing vctrl bridge in 5 seconds.\n");
+            sleep(5);
+            break;
+        }
+        sleep(1);
+    }
+    
+    ros::AsyncSpinner spinner(1); // Use 1 thread - check if you actually need this for only publishing
+    spinner.start();
+    
     // ROS stuff
     ros_nh_ptr_ = new ros::NodeHandle(node_name + "_base_controller");
 	odom_broadcaster_ptr.reset(new tf::TransformBroadcaster);
 		
-    cmd_sub_g = ros_nh_ptr_->subscribe("smooth_cmd_vel", 1, &OmnibaseCtrl::cmd_vel_cb, this);
+    cmd_sub_g = ros_nh_ptr_->subscribe("/smooth_cmd_vel", 1, &OmnibaseCtrl::cmd_vel_cb, this); //fixme: this slash ...
     realtime_pub = new realtime_tools::RealtimePublisher<nav_msgs::Odometry>(*ros_nh_ptr_, "odom", 1);
 
     ros::param::param<double>("~max_lin_vel", max_lin, 0.30);
@@ -551,13 +567,10 @@ void OmnibaseCtrl::init_vctrl_bridge() {
     timeout = ros::Duration(0.25);
 
     ros::Rate loop_rate = ros::Rate(50);
-
     running = true;
 
     while (!sys_thread_end.load()) {
-        if (ros_to_sds_.load()) { //TODO: renaming..
-            vctrl_step();
-        }
+        vctrl_step();
         loop_rate.sleep();
     }
 
@@ -569,7 +582,12 @@ void OmnibaseCtrl::vctrl_step() {
     ros::Time now = ros::Time::now();
     ros::Duration elapsed = now - last_cmd;
     
-    if (ros_to_sds_.load()) { // If enabled, send control commands. otherwise just publish odometry.
+    MekaOmnibaseControlCommand* obase_vctrl_command = (MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand();
+	MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
+    
+    if (ros_to_sds_.load()) { // If enabled, send control commands. otherwise just publish odometry. //TODO: renaming..
+		obase_pwr_shr_ptr_->SetMotorEnable(true); // TODO: disable it?
+		
 		//rospy.logdebug("Time elapsed since last command: " + str(elapsed.to_sec()))
 		if (elapsed.toSec() > timeout.toSec()) {
 			// Too much time passed since last command, zero it.
@@ -597,9 +615,6 @@ void OmnibaseCtrl::vctrl_step() {
 			double tds = last_cmd_vel.angular.z / tda;
 			td = tds * max_ang;
 		}
-
-		MekaOmnibaseControlCommand* obase_vctrl_command = (MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand();
-		MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
 	 		
 		obase_vctrl_command->set_ctrl_mode(MEKA_OMNIBASE_CONTROL_ON); //ON
 		obase_vctrl_command->set_xd_des(0,xd);
@@ -682,12 +697,14 @@ void OmnibaseCtrl::vctrl_step() {
             //ros::Duration(0.01).sleep();
         }
     }
-
-
 }
 
-void OmnibaseCtrl::cmd_vel_cb(geometry_msgs::Twist cmd_vel) {
-    last_cmd_vel = cmd_vel;
+void OmnibaseCtrl::cmd_vel_cb(const geometry_msgs::TwistConstPtr& msg) {
+
+    last_cmd_vel.linear.x = msg->linear.x;
+    last_cmd_vel.linear.y = msg->linear.y;
+    last_cmd_vel.angular.z = msg->angular.z; 
+
     last_cmd = ros::Time::now();
 }
 

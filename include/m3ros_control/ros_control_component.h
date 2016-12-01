@@ -105,7 +105,7 @@ protected:
     void RosShutdown();
 
 private:
-    std::string bot_name_, zlift_name_, pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
+    std::string bot_name_, zlift_name_, pwr_name_, obase_pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
     bool obase_ctrl;
     
     // acceptable errors between controller output and current state
@@ -121,6 +121,7 @@ private:
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
     m3::M3Pwr* pwr_shr_ptr_;
+    m3::M3Pwr* obase_pwr_shr_ptr_;
     m3::M3Omnibase* obase_shr_ptr_;
     m3::M3OmnibaseShm* obase_shm_shr_ptr_;
     m3::M3JointArray* obase_ja_shr_ptr_;

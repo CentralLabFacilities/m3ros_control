@@ -6,6 +6,7 @@ omnibase: m3omnibase_mb7
 omnibase_shm: m3omnibase_shm_mb7
 omnibase_jointarray: m3joint_array_mb7
 omnibase_vel_ctrl: meka_omnibase_control_component
+omnibase_pwr_component: m3pwr_pwr042
 hw_interface_mode: position #effort
 ctrl_acceptable_mirror_error:
   angular:

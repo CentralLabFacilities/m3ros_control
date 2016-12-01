@@ -95,7 +95,7 @@ RosControlComponent::RosControlComponent() :
         m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), cb_queue_ptr(NULL), was_estop_(true), spinner_running_(
                 false), obase_ctrl(false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
-        NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
+        NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
                 NULL), obase_vctrl_shr_ptr_(NULL), rc(0), mrc(0), ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(
                 NULL), realtime_pub_ptr_(
         NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0) {
@@ -158,7 +158,8 @@ bool RosControlComponent::LinkDependentComponents() {
     }
     obase_ctrl = true;
     obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
-	if (obase_vctrl_shr_ptr_ == NULL) {
+    obase_pwr_shr_ptr_ = (m3::M3Pwr*) factory->GetComponent(obase_pwr_name_);
+	if (obase_vctrl_shr_ptr_ == NULL || obase_pwr_shr_ptr_ == NULL) {
 		m3rt::M3_INFO("%s not found for component %s, probing other omnibase components...\n", obase_vctrl_name_.c_str(), GetName().c_str());
 		obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
 		if (obase_shr_ptr_ == NULL || obase_shm_shr_ptr_ == NULL || obase_ja_shr_ptr_ == NULL) 
@@ -197,6 +198,7 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename) {
     doc["omnibase_shm"] >> obase_shm_name_;
     doc["omnibase_jointarray"] >> obase_jointarray_name_;
     doc["omnibase_vel_ctrl"] >> obase_vctrl_name_;
+    doc["omnibase_pwr_component"] >> obase_pwr_name_;
     doc["hw_interface_mode"] >> hw_interface_mode_;
 
     if (hw_interface_mode_ == "effort" || hw_interface_mode_ == "position")
@@ -386,7 +388,7 @@ bool RosControlComponent::RosInit() {
         } else {
             if (obase_vctrl_shr_ptr_) {
                 m3rt::M3_INFO("starting velocity omnibase control...\n");
-                obase_ptr_->startup_vel_control(obase_vctrl_shr_ptr_);
+                obase_ptr_->startup_vel_control(obase_vctrl_shr_ptr_, obase_pwr_shr_ptr_);
             }
         }
         
