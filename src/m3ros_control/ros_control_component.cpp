@@ -93,7 +93,7 @@ void *rosmain_async_spinner(void * arg) {
 
 RosControlComponent::RosControlComponent() :
         m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), cb_queue_ptr(NULL), was_estop_(true), spinner_running_(
-                false), obase_ctrl(false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
+                false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
         NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
                 NULL), obase_vctrl_shr_ptr_(NULL), rc(0), mrc(0), ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(
@@ -156,19 +156,22 @@ bool RosControlComponent::LinkDependentComponents() {
         m3rt::M3_INFO("%s not found for component %s\n", pwr_name_.c_str(), GetName().c_str());
         return false;
     }
-    obase_ctrl = true;
-    obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
-    obase_pwr_shr_ptr_ = (m3::M3Pwr*) factory->GetComponent(obase_pwr_name_);
-	if (obase_vctrl_shr_ptr_ == NULL || obase_pwr_shr_ptr_ == NULL) {
-		m3rt::M3_INFO("%s not found for component %s, probing other omnibase components...\n", obase_vctrl_name_.c_str(), GetName().c_str());
-		obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
-		if (obase_shr_ptr_ == NULL || obase_shm_shr_ptr_ == NULL || obase_ja_shr_ptr_ == NULL) 
-			obase_ctrl = false;
-	}
-	if(!obase_ctrl) {
-		m3rt::M3_INFO("Starting %s without omnibase control capabilities...\n", GetName().c_str());
-	}
-    m3rt::M3_INFO("LinkDependentComponents success!\n");
+
+    obase_shr_ptr_ = (m3::M3Omnibase*) factory->GetComponent(obase_name_);
+    if (obase_shr_ptr_ == NULL) {
+        m3rt::M3_INFO("Starting %s without omnibase control capabilities...\n", GetName().c_str());
+    } else {
+        obase_vctrl_shr_ptr_ = (m3_obase_ctrl::MekaOmnibaseControl*) factory->GetComponent(obase_vctrl_name_);
+        obase_pwr_shr_ptr_ = (m3::M3Pwr*) factory->GetComponent(obase_pwr_name_);
+        if (obase_vctrl_shr_ptr_ == NULL || obase_pwr_shr_ptr_ == NULL) {
+            obase_shm_shr_ptr_ = (m3::M3OmnibaseShm*) factory->GetComponent(obase_shm_name_);
+            obase_ja_shr_ptr_ = (m3::M3JointArray*) factory->GetComponent(obase_jointarray_name_);
+            if (obase_shm_shr_ptr_ == NULL || obase_ja_shr_ptr_ == NULL)
+                m3rt::M3_INFO("Starting %s without omnibase control capabilities...\n", GetName().c_str());
+        } 
+    }
+
+    m3rt::M3_INFO("%s: LinkDependentComponents success!\n", GetName().c_str());
     return true;
 }
 
@@ -303,12 +306,9 @@ void RosControlComponent::StepStatus() {
         //PRINT_TIME(start_dt_status_,end_dt_status_,tmp_dt_status_,"status");
     } else {
         if (loop_cnt_ % 1000 == 0) {
-
             M3_INFO("Component %s is not running, please check if roscore is started\n", GetName().c_str());
-
         }
     }
-
 }
 
 void RosControlComponent::StepCommand() {
@@ -383,12 +383,12 @@ bool RosControlComponent::RosInit() {
 		obase_ptr_ = new OmnibaseCtrl(ros_node_name);
         // Create the Omnibase control interface
         if (obase_shr_ptr_ && obase_shm_shr_ptr_ && obase_ja_shr_ptr_) {
-            m3rt::M3_INFO("starting sds omnibase control...\n");
+            m3rt::M3_INFO("%s: starting sds omnibase control...\n", GetName().c_str());
             obase_ptr_->startup_sds_control(obase_shr_ptr_, obase_shm_shr_ptr_, obase_ja_shr_ptr_);
         } else {
-            if (obase_vctrl_shr_ptr_) {
-                m3rt::M3_INFO("starting velocity omnibase control...\n");
-                obase_ptr_->startup_vel_control(obase_vctrl_shr_ptr_, obase_pwr_shr_ptr_);
+            if (obase_shr_ptr_ && obase_vctrl_shr_ptr_ && obase_pwr_shr_ptr_) {
+                m3rt::M3_INFO("%s: starting velocity omnibase control...\n", GetName().c_str());
+                obase_ptr_->startup_vel_control(obase_shr_ptr_, obase_vctrl_shr_ptr_, obase_pwr_shr_ptr_);
             }
         }
         

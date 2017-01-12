@@ -414,12 +414,14 @@ void OmnibaseCtrl::startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3Omni
     detach_sds_th_ = std::thread(&OmnibaseCtrl::init_sds, this);
 }
 
-void OmnibaseCtrl::startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr) {
+void OmnibaseCtrl::startup_vel_control(m3::M3Omnibase* obase_shr_ptr, m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr) {
+    assert(obase_shr_ptr != NULL);
     assert(obase_vctrl_shr_ptr != NULL);
     assert(obase_pwr_shr_ptr != NULL);
     
 	ctrl_mode = VCTRL;
 
+	obase_shr_ptr_ = obase_shr_ptr;
     obase_vctrl_shr_ptr_ = obase_vctrl_shr_ptr;
 	obase_pwr_shr_ptr_ = obase_pwr_shr_ptr;
 	
@@ -551,6 +553,22 @@ void OmnibaseCtrl::init_vctrl_bridge() {
         sleep(1);
     }
     
+    while (1) {
+        M3OmnibaseStatus *status = (M3OmnibaseStatus*) obase_shr_ptr_->GetStatus();
+        if (status->calibrated(0) && status->calibrated(1) && status->calibrated(2) && status->calibrated(3)) {
+            m3rt::M3_INFO("Base is calibrated, initializing vctrl bridge and ending m3omnibase component in 3 seconds...\n");
+            sleep(3);
+            obase_shr_ptr_->SetStateDisabled();
+            obase_vctrl_shr_ptr_->SetStateOp();
+            break;
+        }
+        if (sys_thread_end.load()) {
+            return static_cast<void>(0);
+        }
+        m3rt::M3_INFO("Base not yet calibrated, postponing initialization of vctrl bridge.\n");
+        sleep(5);
+    }
+
     ros::AsyncSpinner spinner(1); // Use 1 thread - check if you actually need this for only publishing
     spinner.start();
     
@@ -709,9 +727,8 @@ void OmnibaseCtrl::cmd_vel_cb(const geometry_msgs::TwistConstPtr& msg) {
 }
 
 void OmnibaseCtrl::getPublishableState(m3meka_msgs::M3ControlStates &msg) {
-    //always last element. change when integrate omnibasectrl in mekarobothw
     msg.group_name.back() = name;
-    if (enabled)
+    if (running && enabled)
         msg.state.back() = ctrl_state;
     else
         msg.state.back() = STATE_DISABLE;

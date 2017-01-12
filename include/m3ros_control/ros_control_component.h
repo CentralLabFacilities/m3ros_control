@@ -106,7 +106,6 @@ protected:
 
 private:
     std::string bot_name_, zlift_name_, pwr_name_, obase_pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
-    bool obase_ctrl;
     
     // acceptable errors between controller output and current state
     // to verify controllers were reset to current state
@@ -150,7 +149,7 @@ private:
 
     // calback function for the service
     bool changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
-            m3meka_msgs::M3ControlStateChange::Response &res);
+    m3meka_msgs::M3ControlStateChange::Response &res);
 };
 
 }

@@ -37,7 +37,7 @@ public:
 	void shutdown();
 
 	void startup_sds_control(m3::M3Omnibase* obase_shr_ptr, m3::M3OmnibaseShm* obase_shm_shr_ptr, m3::M3JointArray* obase_ja_shr_ptr);
-	void startup_vel_control(m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr);
+	void startup_vel_control(m3::M3Omnibase* obase_shr_ptr, m3_obase_ctrl::MekaOmnibaseControl* obase_vctrl_shr_ptr, m3::M3Pwr* obase_pwr_shr_ptr);
 
 	// try change the state to requested state_cmd
     int changeState(const int state_cmd);
