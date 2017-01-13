@@ -1,7 +1,6 @@
 #include "m3ros_control/ros_control_component.h"
 
 #include <ctime>
-#include <rtai_shm.h>
 
 #define RT_TASK_FREQUENCY_MEKA_OMNI_SHM 100
 #define RT_TIMER_TICKS_NS_MEKA_OMNI_SHM (1000000000 / RT_TASK_FREQUENCY_MEKA_OMNI_SHM)      //Period of rt-timer

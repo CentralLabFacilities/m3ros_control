@@ -62,7 +62,6 @@ find_package(catkin REQUIRED COMPONENTS
 set(LIBRARIES ${LIBRARIES} ${catkin_LIBRARIES})
 set(INCLUDE_DIRS ${INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 
-
 ###############################################################################
 # Find RTAI
 find_package(RTAI REQUIRED)
