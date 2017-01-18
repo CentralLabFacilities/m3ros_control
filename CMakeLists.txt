@@ -170,8 +170,7 @@ add_library(${PROJECT_NAME} src/m3ros_control/ros_control_component.cpp
                             src/m3ros_control/factory_proxy.cpp
                             ${ProtoSources}
                             )
-add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS})
-
+add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_cpp_protobuf_output)
 
 FIND_LIBRARY(MEKA_OBASE_CTRL_LIB meka_omnibase_control ${CATKIN_PACKAGE_LIB_DESTINATION})
 
