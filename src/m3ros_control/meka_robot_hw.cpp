@@ -320,11 +320,8 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             if (it->second.ctrl_state != STATE_ESTOP) {
                 m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
                 if (group_name == "zlift") {               
-                    if(zlift_shr_ptr_->IsStateOp()) {
-                        m3rt::M3_INFO("%s: was in Op, setting state SafeOp.\n ",group_name.c_str());
-                        zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF);
-                        //zlift_shr_ptr_->SetStateSafeOp();
-                    }
+                    m3rt::M3_INFO("%s: setting control mode to OFF..\n ",group_name.c_str());
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
                 }
             }
             it->second.ctrl_state = STATE_ESTOP;
@@ -338,12 +335,8 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             it->second.ctrl_state = STATE_STANDBY;
             if (it->second.enabled) {
                 if (group_name == "zlift") {               
-                    if(zlift_shr_ptr_->IsStateOp()) {
-                        m3rt::M3_INFO("%s: was in Op, setting state SafeOp and disabling motor pwr...\n ",group_name.c_str());
-                        zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF);
-                        //zlift_pwr_shr_ptr_->SetMotorEnable(false); //otherwise the zlift brake will not be engaged.
-                        //zlift_shr_ptr_->SetStateSafeOp();
-                    }
+                    m3rt::M3_INFO("%s: setting control mode to OFF.\n ",group_name.c_str());
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
                 }
                 m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
             }

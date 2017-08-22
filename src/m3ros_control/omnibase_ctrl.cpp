@@ -770,7 +770,6 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
             ctrl_state = STATE_STANDBY;
             if (enabled) {
                 m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
-                obase_pwr_shr_ptr_->SetMotorEnable(false);
             }
             break;
         case STATE_CMD_FREEZE: //no freeze for base.
