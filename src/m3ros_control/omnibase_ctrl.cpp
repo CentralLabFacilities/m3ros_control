@@ -601,11 +601,10 @@ void OmnibaseCtrl::vctrl_step() {
     ros::Duration elapsed = now - last_cmd;
     
     MekaOmnibaseControlCommand* obase_vctrl_command = (MekaOmnibaseControlCommand*)obase_vctrl_shr_ptr_->GetCommand();
-	MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
+    MekaOmnibaseControlStatus* obase_vctrl_status = (MekaOmnibaseControlStatus*)obase_vctrl_shr_ptr_->GetStatus();
     
     if (ros_to_sds_.load()) { // If enabled, send control commands. otherwise just publish odometry. //TODO: renaming..
-		obase_pwr_shr_ptr_->SetMotorEnable(true); // TODO: disable it?
-		
+	
 		//rospy.logdebug("Time elapsed since last command: " + str(elapsed.to_sec()))
 		if (elapsed.toSec() > timeout.toSec()) {
 			// Too much time passed since last command, zero it.
@@ -769,8 +768,10 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
             if (ctrl_state == STATE_RUNNING)
                 disable_ros2sds();
             ctrl_state = STATE_STANDBY;
-            if (enabled)
+            if (enabled) {
                 m3rt::M3_INFO("%s: in standby state\n ", name.c_str());
+                obase_pwr_shr_ptr_->SetMotorEnable(false);
+            }
             break;
         case STATE_CMD_FREEZE: //no freeze for base.
             if (enabled) {
@@ -792,6 +793,11 @@ int OmnibaseCtrl::changeState(const int state_cmd) {
                         ret = -3;
                         break;
                     }
+                    if(obase_pwr_shr_ptr_->IsStateSafeOp()) { //enable pwr 
+                        m3rt::M3_INFO("%s: pwr was in SafeOp, setting state Operational... \n ",obase_pwr_shr_ptr_->GetName().c_str());
+                        obase_pwr_shr_ptr_->SetStateOp();
+                    }
+                    obase_pwr_shr_ptr_->SetMotorEnable(true);
                     enable_ros2sds();
                     ctrl_state = STATE_RUNNING;
                     m3rt::M3_INFO("%s: putting in running state\n ", name.c_str());

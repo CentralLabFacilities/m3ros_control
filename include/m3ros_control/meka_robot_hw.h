@@ -48,7 +48,7 @@ class MekaRobotHW: public hardware_interface::RobotHW {
 public:
 
     MekaRobotHW(m3::M3Humanoid* bot_shr_ptr, m3::M3JointZLift* zlift_shr_ptr,
-            std::string hw_interface_mode);
+            m3::M3Pwr* zlift_pwr_shr_ptr, std::string hw_interface_mode);
 
     virtual ~MekaRobotHW() {};
 
@@ -79,6 +79,7 @@ private:
 
     m3::M3Humanoid* bot_shr_ptr_;
     m3::M3JointZLift* zlift_shr_ptr_;
+    m3::M3Pwr* zlift_pwr_shr_ptr_;
 
     hardware_interface::JointStateInterface js_interface_;
     hardware_interface::PositionJointInterface pj_interface_;
