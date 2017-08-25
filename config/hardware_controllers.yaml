@@ -182,15 +182,15 @@ meka_roscontrol:
       goal_time: 0.5                   # Defaults to zero
       stopped_velocity_tolerance: 0.05 # Defaults to 0.01
       right_hand_j0:
-        goal: 0.1       
+        goal: 10.0      
       right_hand_j1:
-        goal: 0.1           
+        goal: 10.0           
       right_hand_j2:
-        goal: 0.1       
+        goal: 10.0       
       right_hand_j3:
-        goal: 0.1       
+        goal: 10.0       
       right_hand_j4:
-        goal: 0.1       
+        goal: 10.0       
 
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
@@ -281,19 +281,19 @@ meka_roscontrol:
       goal_time: 0.5
       stopped_velocity_tolerance: 0.05
       right_arm_j0:
-        goal: 0.1       
+        goal: 0  
       right_arm_j1:
-        goal: 0.1       
+        goal: 0 
       right_arm_j2:
-        goal: 0.1       
+        goal: 0
       right_arm_j3:
-        goal: 0.1       
+        goal: 0
       right_arm_j4:
-        goal: 0.1       
+        goal: 0
       right_arm_j5:
-        goal: 0.1       
+        goal: 0
       right_arm_j6:
-        goal: 0.1       
+        goal: 0
 
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
