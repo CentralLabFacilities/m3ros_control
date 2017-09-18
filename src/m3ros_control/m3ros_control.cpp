@@ -294,7 +294,7 @@ void M3RosControl::StepStatus() {
                 was_estop_ = false;
                 rt_sem_wait(state_mutex_);
                 hw_ptr_->changeStateAll(STATE_CMD_STOP);
-				obase_ptr_->changeState(STATE_CMD_STOP);
+                obase_ptr_->changeState(STATE_CMD_STOP);
                 rt_sem_signal(state_mutex_);
             }
         }
@@ -387,7 +387,7 @@ bool M3RosControl::RosInit() {
 
         // Create the Meka Hardware interface
         m3rt::M3_INFO("Starting hardware control...\n");
-        hw_ptr_ = new MekaRobotHW(bot_shr_ptr_, zlift_shr_ptr_, hw_interface_mode_);
+        hw_ptr_ = new MekaRobotHW(bot_shr_ptr_, zlift_shr_ptr_, obase_pwr_shr_ptr_, hw_interface_mode_); //obase_pwr == zlift_pwr
         hw_ptr_->setCtrlAcceptableMirrorError(accept_ang_pos_, accept_ang_vel_, accept_torque_, accept_lin_pos_,
                 accept_lin_vel_, accept_force_);
 		

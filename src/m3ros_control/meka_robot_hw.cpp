@@ -26,15 +26,17 @@ using namespace hardware_interface;
 namespace m3ros_control {
 
 MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
-        m3::M3JointZLift* zlift_shr_ptr, string hw_interface_mode) :
-        bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL) {
+        m3::M3JointZLift* zlift_shr_ptr, m3::M3Pwr* zlift_pwr_shr_ptr, string hw_interface_mode) :
+        bot_shr_ptr_(NULL), zlift_shr_ptr_(NULL), zlift_pwr_shr_ptr_(NULL) {
 
     printcount = 0;
 
     assert(bot_shr_ptr != NULL);
     assert(zlift_shr_ptr != NULL);
+    assert(zlift_pwr_shr_ptr != NULL);
     bot_shr_ptr_ = bot_shr_ptr;
     zlift_shr_ptr_ = zlift_shr_ptr;
+    zlift_pwr_shr_ptr_ = zlift_pwr_shr_ptr;   
 
     Chain_::joint_mode_t mode;
     if (hw_interface_mode == "position")
@@ -271,13 +273,11 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
     map_it_t it = chain_map_.find(group_name);
     if (it != chain_map_.end()) {
         switch (state_cmd) {
-          
         case STATE_CMD_DISABLE:
             it->second.enabled = false;
             if (it->second.ctrl_state == STATE_RUNNING) {
                 //switch controller off
-                m3rt::M3_INFO("%s: You should switch controllers off !\n",
-                        group_name.c_str());
+                m3rt::M3_INFO("%s: You should switch controllers off !\n", group_name.c_str());
             }
             if (it->second.ctrl_state != STATE_ESTOP) {
                 m3rt::M3_INFO("%s: Disabled but in ctrl state Standby \n", group_name.c_str());
@@ -297,38 +297,42 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             break;
 
         case STATE_CMD_ESTOP:
-            if (it->second.enabled)
-            {
+            if (it->second.enabled) {
                 if (it->second.ctrl_state == STATE_RUNNING) {
                     //switch controller off
                     m3rt::M3_INFO("%s: You should switch controllers off !\n",
                             group_name.c_str());
                 }
             }
-
             if (it->second.ctrl_state != STATE_ESTOP) {
                 m3rt::M3_INFO("%s: ESTOP detected\n", group_name.c_str());
+                if (group_name == "zlift") {               
+                    m3rt::M3_INFO("%s: setting control mode to OFF..\n ",group_name.c_str());
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
+                }
             }
-
             it->second.ctrl_state = STATE_ESTOP;
             it->second.frozen = false;
             it->second.allow_running = false;
             break;
 
         case STATE_CMD_STOP:
-
             if (it->second.ctrl_state == STATE_RUNNING)
                 it->second.allow_running = false;
             it->second.ctrl_state = STATE_STANDBY;
-            if (it->second.enabled)
+            if (it->second.enabled) {
+                if (group_name == "zlift") {               
+                    m3rt::M3_INFO("%s: setting control mode to OFF.\n ",group_name.c_str());
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
+                }
                 m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
+            }
             it->second.frozen = false;
 
             break;
 
         case STATE_CMD_FREEZE:
-            if (it->second.enabled)
-            {
+            if (it->second.enabled) {
                 if (it->second.ctrl_state == STATE_RUNNING)
                     it->second.allow_running = false;
                 // cannot go to freeze if previously in e-stop
@@ -343,8 +347,7 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
             break;
 
         case STATE_CMD_START:
-            if (it->second.enabled)
-            {
+            if (it->second.enabled) {
                 if (it->second.ctrl_state != STATE_RUNNING) {
                     // cannot go to run if previously in e-stop
                     // go to standby first
@@ -352,13 +355,21 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
                         ret = -3;
                         break;
                     }
-
                     if (it->second.allow_running) {
                         it->second.ctrl_state = STATE_RUNNING;
+                        if (group_name == "zlift") {
+                            if(zlift_pwr_shr_ptr_->IsStateSafeOp()) {
+                                m3rt::M3_INFO("%s: pwr was in SafeOp, setting state Operational...\n ",zlift_pwr_shr_ptr_->GetName().c_str());
+                                zlift_pwr_shr_ptr_->SetStateOp();
+                            }                            
+                            if(zlift_shr_ptr_->IsStateSafeOp()) {
+                                m3rt::M3_INFO("%s: was in SafeOp, setting state Operational...\n ",group_name.c_str());
+                                zlift_shr_ptr_->SetStateOp();
+                            }
+                            zlift_pwr_shr_ptr_->SetMotorEnable(true);
+                        }
                         it->second.frozen = false;
-                        m3rt::M3_INFO(
-                                "%s: allowed to run, putting in running state\n ",
-                                group_name.c_str());
+                        m3rt::M3_INFO("%s: allowed to run, putting in running state\n ",group_name.c_str());
                     } else {
                         // set to ready to allow for convergence
                         // to be checked and freeze to be triggered
