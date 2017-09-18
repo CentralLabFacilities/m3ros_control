@@ -1,4 +1,4 @@
-#include "m3ros_control/ros_control_component.h"
+#include "../../include/m3ros_control/m3ros_control.h"
 
 #include <ctime>
 
@@ -8,20 +8,20 @@
 #define ROS_ASYNC_SP "ROSSPI"
 #define ROS_MAIN_ASYNC_SP "ROSMSP"
 
-namespace ros_control_component {
+namespace m3ros_control {
 
 using namespace m3rt;
 using namespace std;
 using namespace m3;
 
-////////////////////////// NON-MEMBER THREADING STUFF /////////////////////////
+////////////////////////// NON-MEMBER THREADING STUFF BEGIN /////////////////////////
 
 // asynchronous spinner for ROS implemented as an rt_task to access rt mutex
 // has priority one lower than the current task
 // the service used in the component accesses a mutex of the higher priority task
 // there might be priority inversions to take care of.
 void *ros_async_spinner(void * arg) {
-    RosControlComponent * ros_comp_ptr = (RosControlComponent *) arg;
+    M3RosControl * ros_comp_ptr = (M3RosControl *) arg;
     int prio = ros_comp_ptr->GetPriority();
 
     m3rt::M3_INFO("Starting async spinner thread with priority %d.\n", prio);
@@ -45,7 +45,7 @@ void *ros_async_spinner(void * arg) {
     while (ros_comp_ptr->spinner_running_) {
         // call all the cb from the callback queue
         ros_comp_ptr->cb_queue_ptr->callOne(ros::WallDuration(0));
-        rt_sleep(nano2count(100000000));
+        rt_sleep(nano2count(100 000 000));
     }
 
     // destroy the mutex
@@ -61,7 +61,7 @@ void *ros_async_spinner(void * arg) {
 // asynchronous spinner for ROS implemented as an rt_task to avoid problems of AsyncSpinner
 // has priority 2 lower than the current task
 void *rosmain_async_spinner(void * arg) {
-    RosControlComponent * ros_comp_ptr = (RosControlComponent *) arg;
+    M3RosControl * ros_comp_ptr = (M3RosControl *) arg;
     int prio = std::max(2, ros_comp_ptr->GetPriority() + 2);
 
     m3rt::M3_INFO("Starting main ros async spinner thread with priority %d.\n", prio);
@@ -90,18 +90,24 @@ void *rosmain_async_spinner(void * arg) {
     return static_cast<void *>(0);
 }
 
-RosControlComponent::RosControlComponent() :
+////////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
+
+void M3ROS_INFO() {
+
+}
+
+M3RosControl::M3RosControl() :
         m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), cb_queue_ptr(NULL), was_estop_(true), spinner_running_(
                 false), accept_ang_pos_(0.0), accept_ang_vel_(0.0), accept_torque_(0.0), accept_lin_pos_(
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
         NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
                 NULL), obase_vctrl_shr_ptr_(NULL), rc(0), mrc(0), ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(
                 NULL), realtime_pub_ptr_(
-        NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0) {
+        NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), loop_cnt_(0) {
     RegisterVersion("default", DEFAULT);
 }
 
-RosControlComponent::~RosControlComponent() {
+M3RosControl::~M3RosControl() {
 
     if (cm_ptr_ != NULL)
         delete cm_ptr_;
@@ -129,17 +135,17 @@ RosControlComponent::~RosControlComponent() {
 
 }
 
-google::protobuf::Message* RosControlComponent::GetCommand() {
+google::protobuf::Message* M3RosControl::GetCommand() {
     return &status_;
 }
-google::protobuf::Message* RosControlComponent::GetStatus() {
+google::protobuf::Message* M3RosControl::GetStatus() {
     return &cmd_;
 }
-google::protobuf::Message* RosControlComponent::GetParam() {
+google::protobuf::Message* M3RosControl::GetParam() {
     return &param_;
 }
 
-bool RosControlComponent::LinkDependentComponents() {
+bool M3RosControl::LinkDependentComponents() {
     bot_shr_ptr_ = (m3::M3Humanoid*) factory->GetComponent(bot_name_);
     if (bot_shr_ptr_ == NULL) {
         m3rt::M3_INFO("%s not found for component %s\n", bot_name_.c_str(), GetName().c_str());
@@ -174,23 +180,25 @@ bool RosControlComponent::LinkDependentComponents() {
     return true;
 }
 
-void RosControlComponent::Startup() {
+void M3RosControl::Startup() {
     period_.fromSec(1.0 / static_cast<double>(RT_TASK_FREQUENCY));
 
-    if (!RosInit()) //NOTE here the bot_shr_ptr_ is correctly loaded
-        skip_loop_ = true;
+    if (!RosInit()) { //NOTE here the bot_shr_ptr_ is correctly loaded
+        SetStateDisabled();
+    } else {
+        SetStateSafeOp();
+    }
 
-    INIT_CNT(tmp_dt_status_);
-    INIT_CNT(tmp_dt_cmd_);
+    //INIT_CNT(tmp_dt_status_);
+    //INIT_CNT(tmp_dt_cmd_);
 
-    SetStateSafeOp();
 }
 
-void RosControlComponent::Shutdown() {
+void M3RosControl::Shutdown() {
     RosShutdown();
 }
 
-bool RosControlComponent::ReadConfig(const char* cfg_filename) {
+bool M3RosControl::ReadConfig(const char* cfg_filename) {
     if (!M3Component::ReadConfig(cfg_filename))
         return false;
     doc["humanoid"] >> bot_name_;
@@ -265,9 +273,12 @@ bool RosControlComponent::ReadConfig(const char* cfg_filename) {
     return true;
 }
 
-void RosControlComponent::StepStatus() {
+void M3RosControl::StepStatus() {
 
-    if (!skip_loop_) {
+    if (IsStateError())
+        return;
+
+    if (!IsStateDisabled()) {
         //SAVE_TIME(start_dt_status_);
         // read from hardware
         hw_ptr_->read();
@@ -310,35 +321,36 @@ void RosControlComponent::StepStatus() {
     }
 }
 
-void RosControlComponent::StepCommand() {
+void M3RosControl::StepCommand() {
 
-    if (!skip_loop_) {
-        //SAVE_TIME(start_dt_cmd_);
-        rt_sem_wait(state_mutex_);
-        // write to hardware
-        hw_ptr_->write();
-        // publish the ctrl state once every 100 loops
-        if (loop_cnt_ % 100 == 0) {
-            if (realtime_pub_ptr_->trylock()) {
-                hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-                obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-                realtime_pub_ptr_->unlockAndPublish();
-            }
+    if ( !IsStateOp() )
+        return;
+
+    //SAVE_TIME(start_dt_cmd_);
+    rt_sem_wait(state_mutex_);
+    // write to hardware
+    hw_ptr_->write();
+    // publish the ctrl state once every 100 loops
+    if (loop_cnt_ % 100 == 0) {
+        if (realtime_pub_ptr_->trylock()) {
+            hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+            obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+            realtime_pub_ptr_->unlockAndPublish();
         }
-        rt_sem_signal(state_mutex_);
-
-        //SAVE_TIME(end_dt_cmd_);
-        //PRINT_TIME(start_dt_cmd_,end_dt_cmd_,tmp_dt_cmd_,"cmd");
     }
+    rt_sem_signal(state_mutex_);
+
+    //SAVE_TIME(end_dt_cmd_);
+    //PRINT_TIME(start_dt_cmd_,end_dt_cmd_,tmp_dt_cmd_,"cmd");
 
     loop_cnt_++;
 }
 
-M3BaseStatus* RosControlComponent::GetBaseStatus() {
+M3BaseStatus* M3RosControl::GetBaseStatus() {
     return status_.mutable_base();
 } //NOTE make abstract M3Component happy
 
-bool RosControlComponent::RosInit() {
+bool M3RosControl::RosInit() {
     //std::string ros_node_name = GetName();
     std::string ros_node_name = "meka_roscontrol";
     int argc = 1;
@@ -361,7 +373,7 @@ bool RosControlComponent::RosInit() {
         // Create a rt thread for state manager service handler
         spinner_running_ = true;
         rc = -1;
-        rc = rt_thread_create((void*) ros_async_spinner, (void*) this, 1000000);
+        rc = rt_thread_create((void*) ros_async_spinner, (void*) this, 1 000 000);
         //m3rt::M3_INFO("rc: %d\n",(int)rc);
 
         // Create a std async spinner for the controller mananager services and callbacks
@@ -404,7 +416,7 @@ bool RosControlComponent::RosInit() {
         PreLoadControllers();
 
         //// Advertize the change state service in the dedicated nodehandler/spinner
-        srv_ = ros_nh_ptr2_->advertiseService("change_state", &RosControlComponent::changeStateCallback, this);
+        srv_ = ros_nh_ptr2_->advertiseService("change_state", &M3RosControl::changeStateCallback, this);
     } else {
         //ros_nh_ptr_ = NULL;
         m3rt::M3_ERR("Roscore is not running, can not initializate the controller_manager in component %s...\n",
@@ -414,7 +426,7 @@ bool RosControlComponent::RosInit() {
     return true;
 }
 
-void RosControlComponent::RosShutdown() {
+void M3RosControl::RosShutdown() {
     m3rt::M3_INFO("Shutting down ros interface\n");
     //UnloadControllers() is blocked by no CM->update being called anylonger
     // to swap the double-buffered controller list
@@ -442,7 +454,7 @@ void RosControlComponent::RosShutdown() {
     srv_.shutdown();
 }
 
-void RosControlComponent::PreLoadControllers() {
+void M3RosControl::PreLoadControllers() {
     for (unsigned i = 0; i < controller_list_.size(); i++) {
         if (cm_ptr_->loadController(controller_list_[i])) {
             M3_INFO("Controller %s pre-loaded\n", controller_list_[i].c_str());
@@ -450,7 +462,7 @@ void RosControlComponent::PreLoadControllers() {
     }
 }
 
-void RosControlComponent::UnloadControllers() {
+void M3RosControl::UnloadControllers() {
     for (unsigned i = 0; i < controller_list_.size(); i++) {
         if (cm_ptr_->unloadController(controller_list_[i])) {
             M3_INFO("Controller %s unloaded\n", controller_list_[i].c_str());
@@ -458,7 +470,7 @@ void RosControlComponent::UnloadControllers() {
     }
 }
 
-bool RosControlComponent::changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
+bool M3RosControl::changeStateCallback(m3meka_msgs::M3ControlStateChange::Request &req,
         m3meka_msgs::M3ControlStateChange::Response &res) {
     int ret = 0;
     if (req.command.state.size() > 0 && req.command.state.size() == req.command.group_name.size()) {

@@ -4,6 +4,6 @@ factory_rt_libs:
 
 rt_components:
   - m3ros_control:
-      - m3ros_control_component: ros_control_component
+      - m3ros_control_component: m3ros_control
 
 

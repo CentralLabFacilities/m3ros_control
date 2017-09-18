@@ -20,7 +20,7 @@
 #ifndef M3ROS_CONTROL_OMNIBASE_CTRL_H_
 #define M3ROS_CONTROL_OMNIBASE_CTRL_H_
 
-namespace ros_control_component {
+namespace m3ros_control {
 
 class OmnibaseCtrl {
 public:

@@ -1,5 +1,4 @@
-#ifndef ROS_CONTROL_COMPONENT_H
-#define ROS_CONTROL_COMPONENT_H
+#pragma once
 
 extern "C"
 {
@@ -20,7 +19,7 @@ extern "C"
 
 ////////// Google protobuff
 #include <google/protobuf/message.h>
-#include "m3ros_control/ros_control_component.pb.h"
+#include "m3ros_control/m3ros_control.pb.h"
 
 ////////// ROS/ROS_CONTROL
 #include <ros/ros.h>
@@ -65,16 +64,14 @@ inline double count2Sec(const long long in)
     return (NANO2SEC((double )count2nano(in)));
 }
 
-namespace ros_control_component
+namespace m3ros_control
 {
 
-using namespace controller_manager;
-
-class RosControlComponent: public m3rt::M3Component
+class M3RosControl: public m3rt::M3Component
 {
 public:
-    RosControlComponent();
-    ~RosControlComponent();
+    M3RosControl();
+    ~M3RosControl();
 
     google::protobuf::Message* GetCommand();
     google::protobuf::Message* GetStatus();
@@ -95,9 +92,9 @@ protected:
     void StepStatus();
     void StepCommand();
 
-    RosControlComponentStatus status_;
-    RosControlComponentCommand cmd_;
-    RosControlComponentParam param_;
+    M3RosControlStatus status_;
+    M3RosControlCommand cmd_;
+    M3RosControlParam param_;
 
     M3BaseStatus* GetBaseStatus();
 
@@ -105,6 +102,8 @@ protected:
     void RosShutdown();
 
 private:
+    enum{ DEFAULT }; // version
+
     std::string bot_name_, zlift_name_, pwr_name_, obase_pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
     
     // acceptable errors between controller output and current state
@@ -137,11 +136,7 @@ private:
     OmnibaseCtrl* obase_ptr_;
 
     controller_manager::ControllerManager* cm_ptr_;
-    enum
-    {
-        DEFAULT
-    };
-    bool skip_loop_;
+
     long long loop_cnt_;
 
     void PreLoadControllers();
@@ -153,6 +148,3 @@ private:
 };
 
 }
-
-#endif
-

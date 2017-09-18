@@ -71,7 +71,7 @@ std::mutex rtai_to_shm_offset_mutex;
 
 using namespace std;
 
-namespace ros_control_component {
+namespace m3ros_control {
 
 ////////////////////////// TIMESTAMPS /////////////////////////////
 
@@ -392,7 +392,7 @@ void* rt_system_thread(void * arg) {
 /////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
 
 OmnibaseCtrl::OmnibaseCtrl(std::string nodename) : obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), 
-		obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(NULL), 
+		obase_ja_shr_ptr_(NULL), obase_vctrl_shr_ptr_(NULL), obase_pwr_shr_ptr_(NULL), sys(NULL), ros_nh_ptr_(NULL),
 		running(false), name("base"), node_name(nodename), ctrl_state(STATE_DISABLE), 
 		enabled(false), hst(-1), ctrl_mode(DISABLED), max_lin(0.3), max_ang(1.0), diag_i(0) {
 

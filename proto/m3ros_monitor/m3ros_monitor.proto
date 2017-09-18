@@ -1,15 +1,15 @@
 option optimize_for = SPEED;
 import "component_base.proto";
 
-message RosControlComponentStatus
+message M3RosMonitorStatus
 {
 	optional M3BaseStatus	base=1;
 }
 
-message RosControlComponentParam
+message M3RosMonitorParam
 {
 }
 
-message RosControlComponentCommand
+message M3RosMonitorCommand
 {
 }

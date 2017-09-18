@@ -42,7 +42,7 @@
 #define STATE_CMD_FREEZE    5
 #define STATE_CMD_START     6
 
-namespace ros_control_component {
+namespace m3ros_control {
 
 class MekaRobotHW: public hardware_interface::RobotHW {
 public:
@@ -119,6 +119,7 @@ private:
         Chain_(std::string name_, int ndof_, joint_mode_t joint_mode_ = NOT_READY,
                 int ctrl_state_ = STATE_ESTOP, bool frozen_ = false,
                 bool allow_running_ = false, bool enabled_ = false) :
+                chain_ref(RIGHT_ARM), //default
                 name(name_), ndof(ndof_), joint_mode(joint_mode_), ctrl_state(
                         ctrl_state_), frozen(frozen_), allow_running(allow_running_),
                         enabled(enabled_) {

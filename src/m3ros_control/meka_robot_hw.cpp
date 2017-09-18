@@ -23,7 +23,7 @@ using namespace std;
 using namespace controller_manager;
 using namespace hardware_interface;
 
-namespace ros_control_component {
+namespace m3ros_control {
 
 MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
         m3::M3JointZLift* zlift_shr_ptr, string hw_interface_mode) :
@@ -84,7 +84,7 @@ void MekaRobotHW::read() {
             vals->at(0).position = mm2m(zlift_shr_ptr_->GetPos());
             vals->at(0).velocity = mm2m(zlift_shr_ptr_->GetPosDot());
             vals->at(0).effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
-            vals->at(0).stiffness = 1.0;
+            vals->at(0).stiffness = zlift_shr_ptr_->GetStiffness();
             continue;
         }
         bool t_ = false;
@@ -108,7 +108,7 @@ void MekaRobotHW::read() {
                 vals->at(i).effort = mm2m(
                         bot_shr_ptr_->GetTorque_mNm(it->second.chain_ref, i)); // mNm -> Nm
             }
-            vals->at(i).stiffness = 1.0;
+            vals->at(i).stiffness = bot_shr_ptr_->GetStiffness(it->second.chain_ref, i);
         }
     }
 }
@@ -119,24 +119,13 @@ void MekaRobotHW::write() {
     //if (safety_check())
     // if motor not powered on, isPowerOn cannot see the status of the E-Stop
     bot_shr_ptr_->SetMotorPowerOn();
-    // in standby state and above, allow motor power
-    /*if(ctrl_state >= STATE_STANDBY)
-     {
-
-     }
-     else
-     {
-     bot_shr_ptr_->SetMotorPowerOff();
-     }*/
 
     for (map_it_t it = chain_map_.begin(); it != chain_map_.end(); it++) {
-
         // if the group is not disabled or got disabled while running
         if (it->second.enabled || it->second.ctrl_state > STATE_STANDBY)
         {
             // did a disable occur when in a running /ready state ?
-            if (!it->second.enabled && it->second.ctrl_state > STATE_STANDBY)
-            {
+            if (!it->second.enabled && it->second.ctrl_state > STATE_STANDBY) {
                 // directly force the state to standby
                 it->second.ctrl_state = STATE_STANDBY;
                 // and continue to permit to set the low-level meka controller to a safe state
@@ -159,8 +148,7 @@ void MekaRobotHW::write() {
 
             if (it->first == "zlift") {
                 zlift_shr_ptr_->SetDesiredStiffness(std::min(1.0, std::max(0.0, vals->at(0).stiff_cmd)) * s_);
-                zlift_shr_ptr_->SetSlewRate(
-                        s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
+                zlift_shr_ptr_->SetSlewRate(s_ * ((M3JointParam*) zlift_shr_ptr_->GetParam())->max_q_slew_rate());
                 switch (it->second.joint_mode) {
                 case Chain_::joint_mode_t::VELOCITY:
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_THETADOT_GC);
@@ -197,8 +185,7 @@ void MekaRobotHW::write() {
                     if (i == 2 && t_) //j1 slave is a copy of j1, do not write j1 slave value to the actuator
                         break;
                     bot_shr_ptr_->SetStiffness(it->second.chain_ref, i, std::min(1.0, std::max(0.0, vals->at(i).stiff_cmd)) * s_);
-                    bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i,
-                            s_);
+                    bot_shr_ptr_->SetSlewRateProportional(it->second.chain_ref, i, s_);
                     switch (it->second.joint_mode) {
                     case Chain_::joint_mode_t::VELOCITY: //not yet implemented
                         break;
@@ -442,19 +429,12 @@ int MekaRobotHW::getNbGroup() {
 void MekaRobotHW::registerHandles(string name, double* pos, double* vel, double* eff, 
     double* stiffness, double* poscmd, double* velcmd, double* effcmd, double* stiffcmd) {
     js_interface_.registerHandle(JointStateHandle(name, pos, vel, eff));
-    //js_interface_.registerHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness));
-    pj_interface_.registerHandle(
-            JointHandle(js_interface_.getHandle(name), poscmd));
-    ej_interface_.registerHandle(
-            JointHandle(js_interface_.getHandle(name), effcmd));
-    vj_interface_.registerHandle(
-            JointHandle(js_interface_.getHandle(name), velcmd));
+    pj_interface_.registerHandle(JointHandle(js_interface_.getHandle(name), poscmd));
+    ej_interface_.registerHandle(JointHandle(js_interface_.getHandle(name), effcmd));
+    vj_interface_.registerHandle(JointHandle(js_interface_.getHandle(name), velcmd));
     // not an additional joint, just an access to the stiffness with a different joint name
     // (idea by CentroEPiaggio/kuka-lwr/lwr_hw)
-    //pj_interface_.registerHandle(
-     //       JointHandle(js_interface_.getHandle(name + std::string("_stiffness")), stiffcmd));
-    pj_interface_.registerHandle(
-            JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness), 
+    pj_interface_.registerHandle(JointHandle(JointStateHandle(name+std::string("_stiffness"), stiffness, stiffness, stiffness),
             stiffcmd));
 }
 
