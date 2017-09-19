@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>m3ros_control</name>
+  <name>m3rt_ros</name>
   <version>1.0.0</version>
-  <description>The m3ros_control package</description>
+  <description>The m3rt_ros package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->

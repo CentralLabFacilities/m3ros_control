@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 
 ###############################################################################
 # Project name is not mandatory, but you should use it
-project(m3ros_control)
+project(m3rt_ros)
 
 ###############################################################################
 # Set the PROJECT_ROOT variable
