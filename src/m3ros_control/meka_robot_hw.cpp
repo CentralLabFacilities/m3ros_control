@@ -65,6 +65,8 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
                     &vals->at(i).pos_cmd, &vals->at(i).vel_cmd,
                     &vals->at(i).eff_cmd, &vals->at(i).stiff_cmd);
         }
+        
+        switched_off[it->first] = false;
     }
 
     registerInterface(&js_interface_);
@@ -134,8 +136,13 @@ void MekaRobotHW::write() {
             if (chain.ctrl_state < STATE_READY) {
                 s_ = 0.0;
                 chain.joint_mode = Chain_::joint_mode_t::NOT_READY;
+                if(switched_off[it->first] == true) {
+                    continue; //this way we prevent the endless stiffness and slewrate setting and fix the "floating" bug..
+                }
+            } else {
+                switched_off[it->first] = false;
             }
-
+            
             vector<joint_value_> *vals = &chain.values;
 
             if (it->first == "zlift") {
@@ -156,8 +163,9 @@ void MekaRobotHW::write() {
                 case Chain_::joint_mode_t::EFFORT: //not yet implemented
                     break;
                 case Chain_::joint_mode_t::NOT_READY:
-                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF);
                     m3rt::M3_INFO("%s: setting mode to off\n ", it->first.c_str());
+                    zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF);
+                    switched_off[it->first] = true;
                     break;
                 default:
                     break;
@@ -196,6 +204,7 @@ void MekaRobotHW::write() {
                     case Chain_::joint_mode_t::NOT_READY:
                         m3rt::M3_INFO("%s,%s: setting mode to off\n ", it->first.c_str(), vals->at(i).name.c_str());
                         bot_shr_ptr_->SetModeOff(chain.chain_ref, i);
+                        switched_off[it->first] = true;
                         break;
                     default:
                         break;
@@ -228,8 +237,9 @@ void MekaRobotHW::write() {
                             m2mm(vals->at(i).eff_cmd));
                     break;
                 case Chain_::joint_mode_t::NOT_READY:
-                    bot_shr_ptr_->SetModeOff(chain.chain_ref, i);
                     m3rt::M3_INFO("%s,%s: setting mode to off\n ", it->first.c_str(), vals->at(i).name.c_str());
+                    bot_shr_ptr_->SetModeOff(chain.chain_ref, i);
+                    switched_off[it->first] = true;
                     break;
                 default:
                     break;
@@ -254,9 +264,9 @@ void MekaRobotHW::setCtrlAcceptableMirrorError(const double accept_ang_pos,
 int MekaRobotHW::changeState(const int state_cmd, string group_name) {
     int ret = 0;
     map_it_t it = chain_map_.find(group_name);
-    if (it != chain_map_.end()) {
-        vector<joint_value_> *vals = &it->second.values; //just for the index
+    if (it != chain_map_.end()) {        
         Chain_& chain = it->second;
+        
         switch (state_cmd) {
         case STATE_CMD_DISABLE:
             chain.enabled = false;
@@ -293,7 +303,8 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
                 if (group_name == "zlift") {               
                     m3rt::M3_INFO("%s: setting control mode to OFF..\n ",group_name.c_str());
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
-                }
+                } 
+                
             }
             chain.ctrl_state = STATE_ESTOP;
             chain.frozen = false;
@@ -308,7 +319,7 @@ int MekaRobotHW::changeState(const int state_cmd, string group_name) {
                 if (group_name == "zlift") {               
                     m3rt::M3_INFO("%s: setting control mode to OFF.\n ",group_name.c_str());
                     zlift_shr_ptr_->SetDesiredControlMode(JOINT_MODE_OFF); // engaging zlift brake
-                }
+                } 
                 m3rt::M3_INFO("%s: in standby state\n ", group_name.c_str());
             }
             chain.frozen = false;

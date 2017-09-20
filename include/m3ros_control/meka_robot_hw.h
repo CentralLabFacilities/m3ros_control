@@ -189,6 +189,7 @@ private:
     typedef map_t::iterator map_it_t;
 
     std::map<std::string, Chain_> chain_map_;
+    std::map<std::string, bool> switched_off;
 
     // store a freeze state (cur pos/ zero vel/ cur trq , depends on mode)
     // and a freeze command
