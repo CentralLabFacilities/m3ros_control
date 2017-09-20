@@ -1,4 +1,5 @@
-#pragma once
+#ifndef M3_ROS_CONTROL_H
+#define M3_ROS_CONTROL_H
 
 extern "C"
 {
@@ -19,7 +20,7 @@ extern "C"
 
 ////////// Google protobuff
 #include <google/protobuf/message.h>
-#include "m3ros_control/m3ros_control.pb.h"
+#include "m3ros_control.pb.h"
 
 ////////// ROS/ROS_CONTROL
 #include <ros/ros.h>
@@ -67,6 +68,8 @@ inline double count2Sec(const long long in)
 namespace m3ros_control
 {
 
+using namespace controller_manager;
+
 class M3RosControl: public m3rt::M3Component
 {
 public:
@@ -102,7 +105,6 @@ protected:
     void RosShutdown();
 
 private:
-    enum{ DEFAULT }; // version
 
     std::string bot_name_, zlift_name_, pwr_name_, obase_pwr_name_, obase_name_, obase_shm_name_, obase_jointarray_name_, obase_vctrl_name_, hw_interface_mode_;
     
@@ -136,7 +138,13 @@ private:
     OmnibaseCtrl* obase_ptr_;
 
     controller_manager::ControllerManager* cm_ptr_;
+    
+    enum
+    {
+        DEFAULT
+    };
 
+    bool skip_loop_;
     long long loop_cnt_;
 
     void PreLoadControllers();
@@ -148,3 +156,5 @@ private:
 };
 
 }
+
+#endif

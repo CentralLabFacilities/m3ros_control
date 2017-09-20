@@ -83,7 +83,7 @@ void MekaRobotHW::read() {
             vals->at(0).position = mm2m(zlift_shr_ptr_->GetPos());
             vals->at(0).velocity = mm2m(zlift_shr_ptr_->GetPosDot());
             vals->at(0).effort = mm2m(zlift_shr_ptr_->GetForce()); // mNm -> Nm
-            vals->at(0).stiffness = zlift_shr_ptr_->GetStiffness();
+            vals->at(0).stiffness = 1.0;
             continue;
         }
         bool t_ = false;
@@ -99,7 +99,7 @@ void MekaRobotHW::read() {
                 vals->at(i).velocity = DEG2RAD(bot_shr_ptr_->GetThetaDotDeg(chain.chain_ref, i));
                 vals->at(i).effort = mm2m(bot_shr_ptr_->GetTorque_mNm(chain.chain_ref, i)); // mNm -> Nm
             }
-            vals->at(i).stiffness = bot_shr_ptr_->GetStiffness(chain.chain_ref, i);
+            vals->at(i).stiffness = 1.0;
         }
     }
 }

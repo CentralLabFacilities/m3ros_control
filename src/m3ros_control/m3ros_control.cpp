@@ -1,4 +1,4 @@
-#include "../../include/m3ros_control/m3ros_control.h"
+#include "m3ros_control/m3ros_control.h"
 
 #include <ctime>
 
@@ -45,7 +45,7 @@ void *ros_async_spinner(void * arg) {
     while (ros_comp_ptr->spinner_running_) {
         // call all the cb from the callback queue
         ros_comp_ptr->cb_queue_ptr->callOne(ros::WallDuration(0));
-        rt_sleep(nano2count(100 000 000));
+        rt_sleep(nano2count(100000000));
     }
 
     // destroy the mutex
@@ -92,9 +92,6 @@ void *rosmain_async_spinner(void * arg) {
 
 ////////////////////////// NON-MEMBER THREADING STUFF END /////////////////////////
 
-void M3ROS_INFO() {
-
-}
 
 M3RosControl::M3RosControl() :
         m3rt::M3Component(MAX_PRIORITY), state_mutex_(NULL), cb_queue_ptr(NULL), was_estop_(true), spinner_running_(
@@ -102,8 +99,7 @@ M3RosControl::M3RosControl() :
                 0.0), accept_lin_vel_(0.0), accept_force_(0.0), bot_shr_ptr_(
         NULL), zlift_shr_ptr_(NULL), pwr_shr_ptr_(NULL), obase_pwr_shr_ptr_(NULL), obase_shr_ptr_(NULL), obase_shm_shr_ptr_(NULL), obase_ja_shr_ptr_(
                 NULL), obase_vctrl_shr_ptr_(NULL), rc(0), mrc(0), ros_nh_ptr_(NULL), ros_nh_ptr2_(NULL), spinner_ptr_(
-                NULL), realtime_pub_ptr_(
-        NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), loop_cnt_(0) {
+                NULL), realtime_pub_ptr_(NULL), hw_ptr_(NULL), obase_ptr_(NULL), cm_ptr_(NULL), skip_loop_(false), loop_cnt_(0) {
     RegisterVersion("default", DEFAULT);
 }
 
@@ -184,15 +180,19 @@ void M3RosControl::Startup() {
     period_.fromSec(1.0 / static_cast<double>(RT_TASK_FREQUENCY));
 
     if (!RosInit()) { //NOTE here the bot_shr_ptr_ is correctly loaded
-        SetStateDisabled();
-    } else {
-        SetStateSafeOp();
+        skip_loop_ = true;
     }
-
     //INIT_CNT(tmp_dt_status_);
     //INIT_CNT(tmp_dt_cmd_);
+    
+    INIT_CNT(tmp_dt_status_);
+    INIT_CNT(tmp_dt_cmd_);
+    
+    SetStateSafeOp();
 
 }
+
+    
 
 void M3RosControl::Shutdown() {
     RosShutdown();
@@ -275,10 +275,7 @@ bool M3RosControl::ReadConfig(const char* cfg_filename) {
 
 void M3RosControl::StepStatus() {
 
-    if (IsStateError())
-        return;
-
-    if (!IsStateDisabled()) {
+    if (!skip_loop_) {
         //SAVE_TIME(start_dt_status_);
         // read from hardware
         hw_ptr_->read();
@@ -323,27 +320,27 @@ void M3RosControl::StepStatus() {
 
 void M3RosControl::StepCommand() {
 
-    if ( !IsStateOp() )
-        return;
-
-    //SAVE_TIME(start_dt_cmd_);
-    rt_sem_wait(state_mutex_);
-    // write to hardware
-    hw_ptr_->write();
-    // publish the ctrl state once every 100 loops
-    if (loop_cnt_ % 100 == 0) {
-        if (realtime_pub_ptr_->trylock()) {
-            hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-            obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
-            realtime_pub_ptr_->unlockAndPublish();
+    if (!skip_loop_) {
+        //SAVE_TIME(start_dt_cmd_);
+        rt_sem_wait(state_mutex_);
+        // write to hardware
+        hw_ptr_->write();
+        // publish the ctrl state once every 100 loops
+        if (loop_cnt_ % 100 == 0) {
+            if (realtime_pub_ptr_->trylock()) {
+                hw_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+                obase_ptr_->getPublishableState(realtime_pub_ptr_->msg_);
+                realtime_pub_ptr_->unlockAndPublish();
+            }
         }
+        rt_sem_signal(state_mutex_);
+
+        //SAVE_TIME(end_dt_cmd_);
+        //PRINT_TIME(start_dt_cmd_,end_dt_cmd_,tmp_dt_cmd_,"cmd");
     }
-    rt_sem_signal(state_mutex_);
-
-    //SAVE_TIME(end_dt_cmd_);
-    //PRINT_TIME(start_dt_cmd_,end_dt_cmd_,tmp_dt_cmd_,"cmd");
-
+    
     loop_cnt_++;
+    
 }
 
 M3BaseStatus* M3RosControl::GetBaseStatus() {
@@ -373,7 +370,7 @@ bool M3RosControl::RosInit() {
         // Create a rt thread for state manager service handler
         spinner_running_ = true;
         rc = -1;
-        rc = rt_thread_create((void*) ros_async_spinner, (void*) this, 1 000 000);
+        rc = rt_thread_create((void*) ros_async_spinner, (void*) this, 1000000);
         //m3rt::M3_INFO("rc: %d\n",(int)rc);
 
         // Create a std async spinner for the controller mananager services and callbacks

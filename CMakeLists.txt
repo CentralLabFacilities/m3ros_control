@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 
 ###############################################################################
 # Project name is not mandatory, but you should use it
-project(m3rt_ros)
+project(m3ros_control)
 
 ###############################################################################
 # Set the PROJECT_ROOT variable
@@ -152,19 +152,22 @@ catkin_package(
 add_subdirectory(src/m3ros_control)
 set_source_files_properties(${ProtoSources} ${ProtoHeaders} PROPERTIES
                             GENERATED TRUE)
+                            
+message(${PROJECT_PROTO_DIR}/${PROJECT_NAME})
+message(${CMAKE_CURRENT_BINARY_DIR})
+message(${ProtoSources})
 ###############################################################################
 # Include directories
 include_directories(
     ${PROJECT_INCLUDE_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/src # Include this directory for the generated protobufs headers
+    ${CMAKE_CURRENT_BINARY_DIR}/src/m3ros_control # Include this directory for the generated protobufs headers
     ${INCLUDE_DIRS}
     ${ProtoHeaders}
 )
 
 
 ## Declare a cpp executable
-message("protosource folder" ${ProtoSources})
-add_library(${PROJECT_NAME} src/m3ros_control/ros_control_component.cpp
+add_library(${PROJECT_NAME} src/m3ros_control/m3ros_control.cpp
                             src/m3ros_control/meka_robot_hw.cpp
                             src/m3ros_control/omnibase_ctrl.cpp
                             src/m3ros_control/factory_proxy.cpp

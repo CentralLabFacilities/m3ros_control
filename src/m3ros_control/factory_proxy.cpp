@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <m3rt/base/component.h>
 #include "m3ros_control/m3ros_control.h"
