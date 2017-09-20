@@ -3,7 +3,7 @@ factory_rt_libs:
   - ${PROJECT_INSTALL_LIB}/libm3ros_control.so
 
 rt_components:
-  - m3rtros_interface:
+  - m3ros_control:
       - m3ros_control_component: m3ros_control
 
 
