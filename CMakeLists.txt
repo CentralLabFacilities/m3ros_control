@@ -152,10 +152,7 @@ catkin_package(
 add_subdirectory(src/m3ros_control)
 set_source_files_properties(${ProtoSources} ${ProtoHeaders} PROPERTIES
                             GENERATED TRUE)
-                            
-message(${PROJECT_PROTO_DIR}/${PROJECT_NAME})
-message(${CMAKE_CURRENT_BINARY_DIR})
-message(${ProtoSources})
+
 ###############################################################################
 # Include directories
 include_directories(
@@ -173,7 +170,7 @@ add_library(${PROJECT_NAME} src/m3ros_control/m3ros_control.cpp
                             src/m3ros_control/factory_proxy.cpp
                             ${ProtoSources}
                             )
-add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_cpp_protobuf_output)
+add_dependencies(${PROJECT_NAME} m3meka_msgs_gencpp ${catkin_EXPORTED_TARGETS}) #${PROJECT_NAME}_cpp_protobuf_output)
 
 FIND_LIBRARY(MEKA_OBASE_CTRL_LIB meka_omnibase_control ${CATKIN_PACKAGE_LIB_DESTINATION})
 
