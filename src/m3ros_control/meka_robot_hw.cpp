@@ -515,6 +515,9 @@ bool MekaRobotHW::checkCtrlConvergence(string group_name) {
                     ctrl_acc_mirror_error_.angular[Chain_::joint_mode_t::POSITION];
 
         for (size_t i = 0; i < vals->size(); i++) {
+            bool is_torso = group_name == "torso" ? true : false;
+            if (i == 2 && is_torso) //j1 slave is a copy of j1, do not write j1 slave value to the actuator
+                        break;
             vals->at(i).err = fabs(vals->at(i).pos_cmd - vals->at(i).position);
             if (vals->at(i).err > epsilon) {
                 converged = false;
