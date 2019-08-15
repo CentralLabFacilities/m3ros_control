@@ -298,6 +298,7 @@ meka_roscontrol:
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
     #hold_trajectory_duration: 0 # Defaults to 0.5
+    stop_trajectory_duration: 0.1        # smoother stop
 
   # Velocity - Right and Left Joint Velocity Trajectory Controllers -------------------
   left_arm_velocity_trajectory_controller:
@@ -348,6 +349,7 @@ meka_roscontrol:
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
     #hold_trajectory_duration: 0 # Defaults to 0.5
+    stop_trajectory_duration: 0.1        # smoother stop
 
   right_arm_velocity_trajectory_controller:
     type: "velocity_controllers/JointTrajectoryController"
