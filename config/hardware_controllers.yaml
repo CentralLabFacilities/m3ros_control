@@ -180,15 +180,15 @@ meka_roscontrol:
       goal_time: 0.5                   # Defaults to zero
       stopped_velocity_tolerance: 0.05 # Defaults to 0.01
       right_hand_j0:
-        goal: 0.6
+        goal: 0.3
       right_hand_j1:
         goal: 0.3
       right_hand_j2:
-        goal: 0.4
+        goal: 0.5
       right_hand_j3:
-        goal: 0.4
+        goal: 0.6
       right_hand_j4:
-        goal: 0.75
+        goal: 0.8
 
     state_publish_rate:  50 # Defaults to 50
     action_monitor_rate: 20 # Defaults to 20
