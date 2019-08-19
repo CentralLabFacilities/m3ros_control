@@ -121,8 +121,6 @@ meka_roscontrol:
       - left_hand_j2_stiffness
       - left_hand_j3_stiffness
       - left_hand_j4_stiffness
-      - head_j0_stiffness
-      - head_j1_stiffness
       - torso_j0_stiffness
       - torso_j1_stiffness
       - zlift_j0_stiffness
