@@ -48,7 +48,11 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
     else
         mode = Chain_::joint_mode_t::POSITION;
 
-    chain_map_["zlift"] = Chain_("zlift", 1, mode);
+    if(zlift_shr_ptr_->IsEncoderCalibrated()) {
+        chain_map_["zlift"] = Chain_("zlift", 1, mode);
+    } else {
+        m3rt::M3_WARN("zlift not calibrated. Not adding to chain_map_!");
+    }
     chain_map_["right_arm"] = Chain_(RIGHT_ARM, bot_shr_ptr->GetNdof(RIGHT_ARM),mode);
     chain_map_["left_arm"] = Chain_(LEFT_ARM, bot_shr_ptr->GetNdof(LEFT_ARM),mode);
     chain_map_["head"] = Chain_(HEAD, bot_shr_ptr->GetNdof(HEAD), mode);
