@@ -123,7 +123,6 @@ meka_roscontrol:
       - left_hand_j4_stiffness
       - torso_j0_stiffness
       - torso_j1_stiffness
-      - zlift_j0_stiffness
 
   right_arm_position_controller:
     type: "position_controllers/JointGroupPositionController"
