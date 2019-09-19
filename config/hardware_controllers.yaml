@@ -176,16 +176,16 @@ meka_roscontrol:
       - right_hand_j4
 
     constraints:
-      goal_time: 0.5                   # Defaults to zero
-      stopped_velocity_tolerance: 0.05 # Defaults to 0.01
+      goal_time: 0.6                   # Defaults to zero
+      stopped_velocity_tolerance: 0.03 # Defaults to 0.01
       right_hand_j0:
-        goal: 0.3
-      right_hand_j1:
-        goal: 0.3
-      right_hand_j2:
         goal: 0.5
-      right_hand_j3:
+      right_hand_j1:
+        goal: 0.2
+      right_hand_j2:
         goal: 0.6
+      right_hand_j3:
+        goal: 0.7
       right_hand_j4:
         goal: 0.8
 
