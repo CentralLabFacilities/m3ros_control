@@ -33,7 +33,7 @@ MekaRobotHW::MekaRobotHW(m3::M3Humanoid* bot_shr_ptr,
 
     assert(bot_shr_ptr != NULL);
     assert(zlift_shr_ptr != NULL);
-    assert(zlift_pwr_shr_ptr != NULL);
+    //assert(zlift_pwr_shr_ptr != NULL);
     bot_shr_ptr_ = bot_shr_ptr;
     zlift_shr_ptr_ = zlift_shr_ptr;
     zlift_pwr_shr_ptr_ = zlift_pwr_shr_ptr;   
