@@ -82,7 +82,7 @@ void *rosmain_async_spinner(void * arg) {
     while (ros_comp_ptr->spinner_running_) {
         // call all the cb from the callback queue
         ros::getGlobalCallbackQueue()->callOne(ros::WallDuration(0));
-        rt_sleep(nano2count(50000000));
+        rt_sleep(nano2count(1000000)); //was 5000000 -> max 20hz
     }
 
     rt_task_delete(task);
